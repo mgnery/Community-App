@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Bell,
@@ -59,7 +60,9 @@ const recentActivities = [
   },
 ];
 
-export default function Home({ navigation }: any) {
+export default function Home() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -93,7 +96,7 @@ export default function Home({ navigation }: any) {
               <TouchableOpacity
                 key={action.label}
                 style={styles.actionCard}
-                onPress={() => navigation?.navigate(action.path)}
+                onPress={() => router.push(`/${action.path}` as any)}
               >
                 <View style={[styles.iconCircle, { backgroundColor: action.color }]}>
                   <action.icon size={20} color="white" />
