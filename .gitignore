@@ -41,3 +41,7 @@ app-example
 # generated native folders
 /ios
 /android
+tsconfig.json
+package.json
+package-lock.json
+app.json
