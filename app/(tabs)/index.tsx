@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   View,
   Text,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,25 +17,17 @@ import {
   Users,
   MapPin,
 } from "lucide-react-native";
-
-// --- Constants & Theme ---
-const THEME = {
-  primary: "#3b82f6", // Mapping rgb(var(--color-primary))
-  background: "#ffffff",
-  card: "#ffffff",
-  border: "#e5e7eb",
-  foreground: "#111827",
-  mutedForeground: "#6b7280",
-};
+import { useAuth } from "../hooks/useAuth";
+import { useTheme, ThemeColors } from "../hooks/useTheme";
 
 const stats = [
-  { label: "Active Reports", value: "12", icon: FileText, color: THEME.primary },
+  { label: "Active Reports", value: "12", icon: FileText, color: null as string | null },
   { label: "Residents", value: "2,431", icon: Users, color: "#22c55e" },
   { label: "Ayuda Given", value: "156", icon: Heart, color: "#fb923c" },
 ];
 
 const quickActions = [
-  { label: "Report Issue", icon: FileText, path: "Reports", color: THEME.primary },
+  { label: "Report Issue", icon: FileText, path: "Reports", color: null as string | null },
   { label: "View Updates", icon: Bell, path: "Updates", color: "#22c55e" },
   { label: "Ayuda Status", icon: Heart, path: "Ayuda", color: "#f97316" },
 ];
@@ -62,79 +55,113 @@ const recentActivities = [
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { colors } = useTheme();
+  const firstName = user?.fullName?.split(" ")[0] || "Resident";
+
+  // ADDED: Pull-to-refresh functionality
+  // ============================================================
+  // When connected to a database, replace the mock refresh with
+  // actual API calls to reload dashboard data:
+  // Example: const data = await fetch('/api/dashboard').then(r => r.json())
+  // ============================================================
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Simulate fetching fresh data from the server
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1500);
+  }, []);
+
+  const s = createStyles(colors);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={s.container}>
+      <ScrollView
+        contentContainerStyle={s.scrollContent}
+        // ADDED: RefreshControl for pull-to-refresh
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.locationBadge}>
-            <MapPin size={16} color={THEME.primary} />
-            <Text style={styles.locationText}>Barangay San Isidro</Text>
+        <View style={s.header}>
+          <View style={s.locationBadge}>
+            <MapPin size={16} color={colors.primary} />
+            <Text style={s.locationText}>Barangay San Isidro</Text>
           </View>
-          <Text style={styles.welcomeText}>Good day, Juan!</Text>
-          <Text style={styles.subtitle}>Stay connected with your community</Text>
+          <Text style={s.welcomeText}>Good day, {firstName}!</Text>
+          <Text style={s.subtitle}>Stay connected with your community</Text>
         </View>
 
-        {/* Stats Cards (Grid Implementation) */}
-        <View style={styles.gridThree}>
+        {/* Stats Cards */}
+        <View style={s.gridThree}>
           {stats.map((stat) => (
-            <View key={stat.label} style={styles.statCard}>
-              <stat.icon size={18} color={stat.color} />
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel} numberOfLines={2}>{stat.label}</Text>
+            <View key={stat.label} style={s.statCard}>
+              <stat.icon size={18} color={stat.color ?? colors.primary} />
+              <Text style={s.statValue}>{stat.value}</Text>
+              <Text style={s.statLabel} numberOfLines={2}>{stat.label}</Text>
             </View>
           ))}
         </View>
 
         {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.gridThree}>
-            {quickActions.map((action) => (
-              <TouchableOpacity
-                key={action.label}
-                style={styles.actionCard}
-                onPress={() => router.push(`/${action.path}` as any)}
-              >
-                <View style={[styles.iconCircle, { backgroundColor: action.color }]}>
-                  <action.icon size={20} color="white" />
-                </View>
-                <Text style={styles.actionLabel}>{action.label}</Text>
-              </TouchableOpacity>
-            ))}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Quick Actions</Text>
+          <View style={s.gridThree}>
+            {quickActions.map((action) => {
+              const actionColor = action.color ?? colors.primary;
+              return (
+                <TouchableOpacity
+                  key={action.label}
+                  style={s.actionCard}
+                  onPress={() => router.push(`/${action.path}` as any)}
+                >
+                  <View style={[s.iconCircle, { backgroundColor: actionColor }]}>
+                    <action.icon size={20} color="white" />
+                  </View>
+                  <Text style={s.actionLabel}>{action.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
         {/* Recent Activity */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <TrendingUp size={16} color={THEME.primary} />
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionTitle}>Recent Activity</Text>
+            <TrendingUp size={16} color={colors.primary} />
           </View>
           
-          <View style={styles.activityList}>
+          <View style={s.activityList}>
             {recentActivities.map((activity, index) => (
-              <View key={index} style={styles.activityCard}>
-                <View style={styles.activityHeader}>
-                  <Text style={styles.activityTitle}>{activity.title}</Text>
+              <View key={index} style={s.activityCard}>
+                <View style={s.activityHeader}>
+                  <Text style={s.activityTitle}>{activity.title}</Text>
                   <View style={[
-                    styles.statusBadge,
-                    activity.status === "completed" ? styles.bgGreen : 
-                    activity.status === "in-progress" ? styles.bgOrange : styles.bgBlue
+                    s.statusBadge,
+                    activity.status === "completed" ? s.bgGreen : 
+                    activity.status === "in-progress" ? s.bgOrange : s.bgBlue
                   ]}>
                     <Text style={[
-                      styles.statusText,
-                      activity.status === "completed" ? styles.textGreen : 
-                      activity.status === "in-progress" ? styles.textOrange : styles.textBlue
+                      s.statusText,
+                      activity.status === "completed" ? s.textGreen : 
+                      activity.status === "in-progress" ? s.textOrange : s.textBlue
                     ]}>
                       {activity.status}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.activityDesc}>{activity.description}</Text>
-                <Text style={styles.activityTime}>{activity.time}</Text>
+                <Text style={s.activityDesc}>{activity.description}</Text>
+                <Text style={s.activityTime}>{activity.time}</Text>
               </View>
             ))}
           </View>
@@ -145,61 +172,30 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.background },
+const createStyles = (c: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   scrollContent: { padding: 16, gap: 24 },
   header: { paddingTop: 8 },
   locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  locationText: { fontSize: 14, color: THEME.mutedForeground },
-  welcomeText: { fontSize: 24, fontWeight: 'bold', color: THEME.foreground },
-  subtitle: { fontSize: 14, color: THEME.mutedForeground },
-  
-  // Grid System (Simulating grid-cols-3)
+  locationText: { fontSize: 14, color: c.mutedForeground },
+  welcomeText: { fontSize: 24, fontWeight: 'bold', color: c.foreground },
+  subtitle: { fontSize: 14, color: c.mutedForeground },
   gridThree: { flexDirection: 'row', gap: 12 },
-  
-  statCard: {
-    flex: 1,
-    backgroundColor: THEME.card,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: THEME.border,
-    justifyContent: 'space-between'
-  },
-  statValue: { fontSize: 20, fontWeight: 'bold', color: THEME.foreground, marginVertical: 4 },
-  statLabel: { fontSize: 10, color: THEME.mutedForeground, lineHeight: 12 },
-
+  statCard: { flex: 1, backgroundColor: c.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border, justifyContent: 'space-between' },
+  statValue: { fontSize: 20, fontWeight: 'bold', color: c.foreground, marginVertical: 4 },
+  statLabel: { fontSize: 10, color: c.mutedForeground, lineHeight: 12 },
   section: { gap: 12 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: THEME.foreground },
-
-  actionCard: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: THEME.card,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: THEME.border,
-  },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: c.foreground },
+  actionCard: { flex: 1, alignItems: 'center', backgroundColor: c.card, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 8, borderWidth: 1, borderColor: c.border },
   iconCircle: { padding: 12, borderRadius: 99, marginBottom: 8 },
-  actionLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center', color: THEME.foreground },
-
+  actionLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center', color: c.foreground },
   activityList: { gap: 12 },
-  activityCard: {
-    backgroundColor: THEME.card,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: THEME.border,
-  },
+  activityCard: { backgroundColor: c.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: c.border },
   activityHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  activityTitle: { fontSize: 14, fontWeight: '600', color: THEME.foreground, flex: 1, marginRight: 8 },
-  activityDesc: { fontSize: 12, color: THEME.mutedForeground, marginBottom: 8 },
-  activityTime: { fontSize: 10, color: THEME.mutedForeground },
-
-  // Status Badges
+  activityTitle: { fontSize: 14, fontWeight: '600', color: c.foreground, flex: 1, marginRight: 8 },
+  activityDesc: { fontSize: 12, color: c.mutedForeground, marginBottom: 8 },
+  activityTime: { fontSize: 10, color: c.mutedForeground },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   statusText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
   bgGreen: { backgroundColor: '#dcfce7' },

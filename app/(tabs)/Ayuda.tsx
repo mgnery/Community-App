@@ -1,38 +1,28 @@
-import React, { useState } from "react";
 import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  Platform,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Heart,
   Calendar,
-  CreditCard,
-  MapPin,
   CheckCircle,
   Clock,
+  CreditCard,
+  Heart,
   Info,
+  MapPin,
 } from "lucide-react-native";
+import React, { useState } from "react";
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { ThemeColors, useTheme } from "../hooks/useTheme";
 
-// --- Theme Constants ---
-const THEME = {
-  primary: "#3b82f6",
-  background: "#f9fafb",
-  card: "#ffffff",
-  border: "#e5e7eb",
-  foreground: "#111827",
-  mutedForeground: "#6b7280",
-  muted: "#f3f4f6",
-  success: "#22c55e",
-  warning: "#f97316",
-};
-
+// ============================================================
+// MOCK AYUDA PROGRAMS — Replace with API fetch from database
+// ============================================================
 const ayudaPrograms = [
   {
     id: 1,
@@ -69,116 +59,101 @@ const ayudaPrograms = [
   },
 ];
 
-const myApplications = [
-  {
-    id: 1,
-    program: "Financial Assistance",
-    status: "approved",
-    appliedDate: "April 5, 2026",
-    method: "digital",
-    amount: "₱3,000",
-  },
-  {
-    id: 2,
-    program: "Educational Support",
-    status: "pending",
-    appliedDate: "April 6, 2026",
-    method: "physical",
-    amount: "₱1,500",
-  },
+const initialApplications = [
+  { id: 1, program: "Financial Assistance", status: "approved", appliedDate: "April 5, 2026", method: "digital", amount: "₱3,000" },
+  { id: 2, program: "Educational Support", status: "pending", appliedDate: "April 6, 2026", method: "physical", amount: "₱1,500" },
 ];
 
 export default function Ayuda() {
   const [view, setView] = useState<"programs" | "applications" | "apply">("programs");
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [distributionMethod, setDistributionMethod] = useState<"digital" | "physical">("digital");
-  const [bankDetails, setBankDetails] = useState({
-    accountName: "",
-    accountNumber: "",
-    bankName: "",
-  });
+  const [bankDetails, setBankDetails] = useState({ accountName: "", accountNumber: "", bankName: "" });
+  const [applications, setApplications] = useState(initialApplications);
+  const [formErrors, setFormErrors] = useState<{ accountName?: string; accountNumber?: string; bankName?: string }>({});
+  const { colors } = useTheme();
+
+  const resetForm = () => {
+    setSelectedProgram(null);
+    setDistributionMethod("digital");
+    setBankDetails({ accountName: "", accountNumber: "", bankName: "" });
+    setFormErrors({});
+  };
 
   const handleApply = () => {
+    if (distributionMethod === "digital") {
+      const errors: { accountName?: string; accountNumber?: string; bankName?: string } = {};
+      if (!bankDetails.accountName.trim()) errors.accountName = "Account name is required.";
+      if (!bankDetails.accountNumber.trim()) errors.accountNumber = "Account number is required.";
+      if (!bankDetails.bankName.trim()) errors.bankName = "Bank name is required.";
+      if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+    }
+
+    const newApplication = {
+      id: applications.length + 1,
+      program: selectedProgram.title,
+      status: "pending",
+      appliedDate: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+      method: distributionMethod,
+      amount: selectedProgram.amount,
+    };
+
+    setApplications([...applications, newApplication]);
     Alert.alert("Success", "Application submitted successfully!");
+    resetForm();
     setView("applications");
   };
 
+  const handleCancel = () => { resetForm(); setView("programs"); };
+
+  const s = createStyles(colors);
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleRow}>
-          <Heart size={24} color="white" />
-          <Text style={styles.headerTitle}>Ayuda</Text>
+    <SafeAreaView style={s.container}>
+      <View style={s.header}>
+        <View style={s.headerTitleRow}>
+          <Heart size={24} color={colors.headerText} />
+          <Text style={s.headerTitle}>Ayuda</Text>
         </View>
-        <Text style={styles.headerSubtitle}>Assistance programs for the community</Text>
+        <Text style={s.headerSubtitle}>Assistance programs for the community</Text>
       </View>
 
-      {/* Navigation Tabs */}
-      <View style={styles.tabWrapper}>
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            onPress={() => setView("programs")}
-            style={[styles.tabBtn, view === "programs" && styles.tabBtnActive]}
-          >
-            <Text style={[styles.tabText, view === "programs" ? styles.textWhite : styles.textForeground]}>
-              Programs
-            </Text>
+      <View style={s.tabWrapper}>
+        <View style={s.tabContainer}>
+          <TouchableOpacity onPress={() => setView("programs")} style={[s.tabBtn, view === "programs" && s.tabBtnActive]}>
+            <Text style={[s.tabText, view === "programs" ? s.textWhite : { color: colors.foreground }]}>Programs</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setView("applications")}
-            style={[styles.tabBtn, view === "applications" && styles.tabBtnActive]}
-          >
-            <Text style={[styles.tabText, view === "applications" ? styles.textWhite : styles.textForeground]}>
-              My Applications
-            </Text>
+          <TouchableOpacity onPress={() => setView("applications")} style={[s.tabBtn, view === "applications" && s.tabBtnActive]}>
+            <Text style={[s.tabText, view === "applications" ? s.textWhite : { color: colors.foreground }]}>My Applications</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={s.scrollContent}>
         {view === "programs" && (
-          <View style={styles.listGap}>
+          <View style={s.listGap}>
             {ayudaPrograms.map((program) => (
-              <View key={program.id} style={styles.card}>
-                <View style={[
-                  styles.statusBar,
-                  program.status === "active" ? styles.bgGreen :
-                  program.status === "upcoming" ? styles.bgOrange : styles.bgGray
-                ]} />
-                <View style={styles.cardPadding}>
-                  <View style={styles.cardHeader}>
+              <View key={program.id} style={s.card}>
+                <View style={[s.statusBar, program.status === "active" ? s.bgGreen : program.status === "upcoming" ? s.bgOrange : s.bgGray]} />
+                <View style={s.cardPadding}>
+                  <View style={s.cardHeader}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle}>{program.title}</Text>
-                      <View style={[
-                        styles.statusBadge,
-                        program.status === "active" ? styles.badgeGreen :
-                        program.status === "upcoming" ? styles.badgeOrange : styles.badgeGray
-                      ]}>
-                        <Text style={[
-                          styles.statusText,
-                          program.status === "active" ? styles.textGreen :
-                          program.status === "upcoming" ? styles.textOrange : styles.textGray
-                        ]}>{program.status}</Text>
+                      <Text style={s.cardTitle}>{program.title}</Text>
+                      <View style={[s.statusBadge, program.status === "active" ? s.badgeGreen : program.status === "upcoming" ? s.badgeOrange : s.badgeGray]}>
+                        <Text style={[s.statusText, program.status === "active" ? s.textGreen : program.status === "upcoming" ? s.textOrange : s.textGray]}>{program.status}</Text>
                       </View>
                     </View>
-                    <View style={styles.amountBox}>
-                      <Text style={styles.amountLabel}>Amount</Text>
-                      <Text style={styles.amountValue}>{program.amount}</Text>
-                    </View>
+                    <View style={s.amountBox}><Text style={s.amountLabel}>Amount</Text><Text style={s.amountValue}>{program.amount}</Text></View>
                   </View>
-                  <Text style={styles.description}>{program.description}</Text>
-                  <View style={styles.detailsList}>
-                    <View style={styles.detailItem}><Calendar size={14} color={THEME.mutedForeground} /><Text style={styles.detailText}>{program.startDate} - {program.endDate}</Text></View>
-                    <View style={styles.detailItem}><MapPin size={14} color={THEME.mutedForeground} /><Text style={styles.detailText}>{program.distribution}</Text></View>
-                    <View style={styles.detailItem}><Info size={14} color={THEME.mutedForeground} /><Text style={styles.detailText}>{program.eligibility}</Text></View>
+                  <Text style={s.description}>{program.description}</Text>
+                  <View style={s.detailsList}>
+                    <View style={s.detailItem}><Calendar size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.startDate} - {program.endDate}</Text></View>
+                    <View style={s.detailItem}><MapPin size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.distribution}</Text></View>
+                    <View style={s.detailItem}><Info size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.eligibility}</Text></View>
                   </View>
                   {program.status === "active" && (
-                    <TouchableOpacity 
-                      style={styles.primaryBtn}
-                      onPress={() => { setSelectedProgram(program); setView("apply"); }}
-                    >
-                      <Text style={styles.primaryBtnText}>Apply Now</Text>
+                    <TouchableOpacity style={s.primaryBtn} onPress={() => { setSelectedProgram(program); setView("apply"); }}>
+                      <Text style={s.primaryBtnText}>Apply Now</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -188,36 +163,23 @@ export default function Ayuda() {
         )}
 
         {view === "applications" && (
-          <View style={styles.listGap}>
-            {myApplications.map((app) => (
-              <View key={app.id} style={[styles.card, styles.cardPadding]}>
-                <View style={styles.cardHeader}>
+          <View style={s.listGap}>
+            {applications.map((app) => (
+              <View key={app.id} style={[s.card, s.cardPadding]}>
+                <View style={s.cardHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{app.program}</Text>
-                    <View style={[styles.statusBadge, app.status === "approved" ? styles.badgeGreen : styles.badgeOrange]}>
-                      {app.status === "approved" ? <CheckCircle size={10} color={THEME.success} /> : <Clock size={10} color={THEME.warning} />}
-                      <Text style={[styles.statusText, app.status === "approved" ? styles.textGreen : styles.textOrange]}> {app.status}</Text>
+                    <Text style={s.cardTitle}>{app.program}</Text>
+                    <View style={[s.statusBadge, app.status === "approved" ? s.badgeGreen : s.badgeOrange]}>
+                      {app.status === "approved" ? <CheckCircle size={10} color={colors.success} /> : <Clock size={10} color={colors.warning} />}
+                      <Text style={[s.statusText, app.status === "approved" ? s.textGreen : s.textOrange]}> {app.status}</Text>
                     </View>
                   </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={styles.amountLabel}>Amount</Text>
-                    <Text style={styles.amountValue}>{app.amount}</Text>
-                  </View>
+                  <View style={{ alignItems: "flex-end" }}><Text style={s.amountLabel}>Amount</Text><Text style={s.amountValue}>{app.amount}</Text></View>
                 </View>
-                <View style={styles.appMetaRow}>
-                  <Text style={styles.detailText}>Applied on:</Text>
-                  <Text style={styles.metaValue}>{app.appliedDate}</Text>
-                </View>
-                <View style={styles.appMetaRow}>
-                  <Text style={styles.detailText}>Distribution method:</Text>
-                  <Text style={[styles.metaValue, { textTransform: 'capitalize' }]}>{app.method}</Text>
-                </View>
+                <View style={s.appMetaRow}><Text style={s.detailText}>Applied on:</Text><Text style={s.metaValue}>{app.appliedDate}</Text></View>
+                <View style={s.appMetaRow}><Text style={s.detailText}>Distribution method:</Text><Text style={[s.metaValue, { textTransform: 'capitalize' }]}>{app.method}</Text></View>
                 {app.status === "approved" && (
-                  <View style={styles.approvedNotice}>
-                    <Text style={styles.approvedNoticeText}>
-                      ✓ Your application has been approved! Please check the program schedule for distribution details.
-                    </Text>
-                  </View>
+                  <View style={s.approvedNotice}><Text style={s.approvedNoticeText}>✓ Your application has been approved! Please check the program schedule for distribution details.</Text></View>
                 )}
               </View>
             ))}
@@ -225,58 +187,56 @@ export default function Ayuda() {
         )}
 
         {view === "apply" && selectedProgram && (
-          <View style={styles.listGap}>
-            <View style={[styles.card, styles.cardPadding]}>
-              <Text style={styles.cardTitle}>{selectedProgram.title}</Text>
-              <Text style={styles.description}>{selectedProgram.description}</Text>
-              <Text style={styles.amountValue}>{selectedProgram.amount}</Text>
+          <View style={s.listGap}>
+            <View style={[s.card, s.cardPadding]}>
+              <Text style={s.cardTitle}>{selectedProgram.title}</Text>
+              <Text style={s.description}>{selectedProgram.description}</Text>
+              <Text style={s.amountValue}>{selectedProgram.amount}</Text>
             </View>
 
-            <Text style={styles.formLabel}>Distribution Method</Text>
-            <View style={styles.methodGrid}>
-              <TouchableOpacity 
-                style={[styles.methodCard, distributionMethod === "digital" && styles.methodCardActive]}
-                onPress={() => setDistributionMethod("digital")}
-              >
-                <CreditCard size={24} color={distributionMethod === "digital" ? "white" : THEME.foreground} />
-                <Text style={[styles.methodTitle, distributionMethod === "digital" && styles.textWhite]}>Digital</Text>
-                <Text style={[styles.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
+            <Text style={s.formLabel}>Distribution Method</Text>
+            <View style={s.methodGrid}>
+              <TouchableOpacity style={[s.methodCard, distributionMethod === "digital" && s.methodCardActive]} onPress={() => { setDistributionMethod("digital"); setFormErrors({}); }}>
+                <CreditCard size={24} color={distributionMethod === "digital" ? "white" : colors.foreground} />
+                <Text style={[s.methodTitle, distributionMethod === "digital" && s.textWhite]}>Digital</Text>
+                <Text style={[s.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.methodCard, distributionMethod === "physical" && styles.methodCardActive]}
-                onPress={() => setDistributionMethod("physical")}
-              >
-                <MapPin size={24} color={distributionMethod === "physical" ? "white" : THEME.foreground} />
-                <Text style={[styles.methodTitle, distributionMethod === "physical" && styles.textWhite]}>Physical</Text>
-                <Text style={[styles.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
+              <TouchableOpacity style={[s.methodCard, distributionMethod === "physical" && s.methodCardActive]} onPress={() => { setDistributionMethod("physical"); setFormErrors({}); }}>
+                <MapPin size={24} color={distributionMethod === "physical" ? "white" : colors.foreground} />
+                <Text style={[s.methodTitle, distributionMethod === "physical" && s.textWhite]}>Physical</Text>
+                <Text style={[s.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
               </TouchableOpacity>
             </View>
 
             {distributionMethod === "digital" ? (
-              <View style={styles.listGap}>
-                <Text style={styles.formLabel}>Bank Details</Text>
-                <TextInput style={styles.input} placeholder="Account Name" placeholderTextColor={THEME.mutedForeground} value={bankDetails.accountName} onChangeText={(t) => setBankDetails({...bankDetails, accountName: t})} />
-                <TextInput style={styles.input} placeholder="Account Number" placeholderTextColor={THEME.mutedForeground} keyboardType="numeric" value={bankDetails.accountNumber} onChangeText={(t) => setBankDetails({...bankDetails, accountNumber: t})} />
-                <TextInput style={styles.input} placeholder="Bank Name" placeholderTextColor={THEME.mutedForeground} value={bankDetails.bankName} onChangeText={(t) => setBankDetails({...bankDetails, bankName: t})} />
+              <View style={s.listGap}>
+                <Text style={s.formLabel}>Bank Details</Text>
+                <View>
+                  <TextInput style={s.input} placeholder="Account Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.accountName} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountName: t }); setFormErrors({ ...formErrors, accountName: undefined }); }} />
+                  {formErrors.accountName && <Text style={s.errorText}>{formErrors.accountName}</Text>}
+                </View>
+                <View>
+                  <TextInput style={s.input} placeholder="Account Number" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={bankDetails.accountNumber} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountNumber: t }); setFormErrors({ ...formErrors, accountNumber: undefined }); }} />
+                  {formErrors.accountNumber && <Text style={s.errorText}>{formErrors.accountNumber}</Text>}
+                </View>
+                <View>
+                  <TextInput style={s.input} placeholder="Bank Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.bankName} onChangeText={(t) => { setBankDetails({ ...bankDetails, bankName: t }); setFormErrors({ ...formErrors, bankName: undefined }); }} />
+                  {formErrors.bankName && <Text style={s.errorText}>{formErrors.bankName}</Text>}
+                </View>
               </View>
             ) : (
-              <View style={styles.infoBox}>
+              <View style={s.infoBox}>
                 <Info size={18} color="#2563eb" />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.infoBoxTitle}>Physical Distribution Schedule:</Text>
-                  <Text style={styles.infoBoxText}>Date: April 20-25, 2026{"\n"}Time: 9:00 AM - 4:00 PM{"\n"}Location: Barangay Hall{"\n\n"}Please bring a valid ID.</Text>
+                  <Text style={s.infoBoxTitle}>Physical Distribution Schedule:</Text>
+                  <Text style={s.infoBoxText}>Date: April 20-25, 2026{"\n"}Time: 9:00 AM - 4:00 PM{"\n"}Location: Barangay Hall{"\n\n"}Please bring a valid ID.</Text>
                 </View>
               </View>
             )}
 
-            <View style={styles.actionRow}>
-              <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={() => setView("programs")}>
-                <Text style={styles.secondaryBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.primaryBtn, { flex: 1, flexDirection: 'row', gap: 8 }]} onPress={handleApply}>
-                <CheckCircle size={18} color="white" />
-                <Text style={styles.primaryBtnText}>Submit</Text>
-              </TouchableOpacity>
+            <View style={s.actionRow}>
+              <TouchableOpacity style={[s.secondaryBtn, { flex: 1 }]} onPress={handleCancel}><Text style={s.secondaryBtnText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={[s.primaryBtn, { flex: 1, flexDirection: 'row', gap: 8 }]} onPress={handleApply}><CheckCircle size={18} color="white" /><Text style={s.primaryBtnText}>Submit</Text></TouchableOpacity>
             </View>
           </View>
         )}
@@ -285,64 +245,55 @@ export default function Ayuda() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.background },
-  header: { backgroundColor: THEME.primary, padding: 16, paddingBottom: 24 },
+const createStyles = (c: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
+  header: { backgroundColor: c.headerBg, padding: 16, paddingBottom: 24 },
   headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  headerTitle: { color: "white", fontSize: 20, fontWeight: "bold" },
-  headerSubtitle: { color: "rgba(255,255,255,0.9)", fontSize: 14 },
-
+  headerTitle: { color: c.headerText, fontSize: 20, fontWeight: "bold" },
+  headerSubtitle: { color: c.headerSubtext, fontSize: 14 },
   tabWrapper: { paddingHorizontal: 16, marginTop: -16, marginBottom: 16 },
-  tabContainer: { backgroundColor: THEME.card, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: THEME.border, flexDirection: "row" },
+  tabContainer: { backgroundColor: c.card, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: c.border, flexDirection: "row" },
   tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center" },
-  tabBtnActive: { backgroundColor: THEME.primary },
+  tabBtnActive: { backgroundColor: c.primary },
   tabText: { fontSize: 12, fontWeight: "600" },
-
   scrollContent: { padding: 16, paddingBottom: 32 },
   listGap: { gap: 16 },
-  card: { backgroundColor: THEME.card, borderRadius: 16, borderWidth: 1, borderColor: THEME.border, overflow: "hidden" },
+  card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: "hidden" },
   statusBar: { height: 4 },
   cardPadding: { padding: 16 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
-  cardTitle: { fontSize: 16, fontWeight: "bold", color: THEME.foreground, marginBottom: 4 },
-
+  cardTitle: { fontSize: 16, fontWeight: "bold", color: c.foreground, marginBottom: 4 },
   statusBadge: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99, flexDirection: "row", alignItems: "center" },
   statusText: { fontSize: 10, fontWeight: "bold", textTransform: "capitalize" },
-  
-  amountBox: { backgroundColor: "rgba(59,130,246,0.1)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, alignItems: "center" },
-  amountLabel: { fontSize: 10, color: THEME.mutedForeground },
-  amountValue: { fontSize: 18, fontWeight: "bold", color: THEME.primary },
-
-  description: { fontSize: 14, color: THEME.mutedForeground, marginBottom: 12 },
+  amountBox: { backgroundColor: c.primaryLight, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, alignItems: "center" },
+  amountLabel: { fontSize: 10, color: c.mutedForeground },
+  amountValue: { fontSize: 18, fontWeight: "bold", color: c.primary },
+  description: { fontSize: 14, color: c.mutedForeground, marginBottom: 12 },
   detailsList: { gap: 8, marginBottom: 16 },
   detailItem: { flexDirection: "row", alignItems: "center", gap: 8 },
-  detailText: { fontSize: 12, color: THEME.mutedForeground },
-
-  primaryBtn: { backgroundColor: THEME.primary, paddingVertical: 12, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  detailText: { fontSize: 12, color: c.mutedForeground },
+  primaryBtn: { backgroundColor: c.primary, paddingVertical: 12, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   primaryBtnText: { color: "white", fontWeight: "600", fontSize: 14 },
-  secondaryBtn: { backgroundColor: THEME.muted, paddingVertical: 12, borderRadius: 12, alignItems: "center" },
-  secondaryBtnText: { color: THEME.foreground, fontWeight: "600" },
-
+  secondaryBtn: { backgroundColor: c.muted, paddingVertical: 12, borderRadius: 12, alignItems: "center" },
+  secondaryBtnText: { color: c.foreground, fontWeight: "600" },
   appMetaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  metaValue: { fontSize: 12, fontWeight: "600", color: THEME.foreground },
-  approvedNotice: { marginTop: 12, padding: 12, backgroundColor: "#f0fdf4", borderRadius: 8, borderLeftWidth: 4, borderLeftColor: THEME.success },
+  metaValue: { fontSize: 12, fontWeight: "600", color: c.foreground },
+  approvedNotice: { marginTop: 12, padding: 12, backgroundColor: "#f0fdf4", borderRadius: 8, borderLeftWidth: 4, borderLeftColor: c.success },
   approvedNoticeText: { fontSize: 12, color: "#166534", fontWeight: "500" },
-
-  formLabel: { fontSize: 14, fontWeight: "600", color: THEME.foreground, marginBottom: 8 },
+  formLabel: { fontSize: 14, fontWeight: "600", color: c.foreground, marginBottom: 8 },
   methodGrid: { flexDirection: "row", gap: 12 },
-  methodCard: { flex: 1, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: THEME.border, backgroundColor: THEME.card },
-  methodCardActive: { backgroundColor: THEME.primary, borderColor: THEME.primary },
-  methodTitle: { fontSize: 14, fontWeight: "bold", marginTop: 8 },
-  methodSub: { fontSize: 11, color: THEME.mutedForeground },
-
-  input: { backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.border, borderRadius: 12, padding: 14, fontSize: 14, color: THEME.foreground },
+  methodCard: { flex: 1, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
+  methodCardActive: { backgroundColor: c.primary, borderColor: c.primary },
+  methodTitle: { fontSize: 14, fontWeight: "bold", marginTop: 8, color: c.foreground },
+  methodSub: { fontSize: 11, color: c.mutedForeground },
+  input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 14, fontSize: 14, color: c.foreground },
   infoBox: { flexDirection: "row", gap: 12, backgroundColor: "#eff6ff", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: "#bfdbfe" },
   infoBoxTitle: { fontSize: 12, fontWeight: "bold", color: "#1e40af", marginBottom: 4 },
   infoBoxText: { fontSize: 12, color: "#1e40af", lineHeight: 18 },
   actionRow: { flexDirection: "row", gap: 12 },
-
-  bgGreen: { backgroundColor: THEME.success }, bgOrange: { backgroundColor: THEME.warning }, bgGray: { backgroundColor: "#9ca3af" },
+  errorText: { color: c.danger, fontSize: 12, marginTop: 4 },
+  bgGreen: { backgroundColor: c.success }, bgOrange: { backgroundColor: c.warning }, bgGray: { backgroundColor: "#9ca3af" },
   badgeGreen: { backgroundColor: "#f0fdf4" }, badgeOrange: { backgroundColor: "#fff7ed" }, badgeGray: { backgroundColor: "#f3f4f6" },
-  textGreen: { color: THEME.success }, textOrange: { color: THEME.warning }, textGray: { color: "#4b5563" },
-  textWhite: { color: "white" }, textForeground: { color: THEME.foreground },
+  textGreen: { color: c.success }, textOrange: { color: c.warning }, textGray: { color: "#4b5563" },
+  textWhite: { color: "white" },
 });

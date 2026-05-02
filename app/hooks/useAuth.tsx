@@ -14,9 +14,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // structure and isAuthenticated state can remain the same.
 // ============================================================
 
-interface User {
+export interface User {
   email: string;
   fullName: string;
+  phone: string;
+  purok: string;
+  barangay: string;
+  residentId: string;
 }
 
 interface AuthContextType {
@@ -26,6 +30,10 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (fullName: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
+  // ADDED: Update profile fields and persist to storage
+  updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  // ADDED: Mock password change — validates locally, ready for API integration
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -88,6 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const mockUser: User = {
         email: email,
         fullName: "Juan Dela Cruz",
+        phone: "+63 912 345 6789",
+        purok: "Purok 3",
+        barangay: "San Isidro",
+        residentId: "BI-2024-00123",
       };
 
       setUser(mockUser);
@@ -140,6 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const mockUser: User = {
         email: email,
         fullName: fullName,
+        phone: "",
+        purok: "",
+        barangay: "",
+        residentId: `BI-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`,
       };
 
       setUser(mockUser);
@@ -156,6 +172,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
+  // ============================================================
+  // UPDATE PROFILE — Replace with actual API call to your database
+  // Example: await fetch('/api/user/profile', { method: 'PUT', body: JSON.stringify(updates) })
+  // ============================================================
+  const updateProfile = async (
+    updates: Partial<User>
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (!user) return { success: false, error: "Not authenticated." };
+
+      // Simulate network delay
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+      return { success: true };
+    } catch (e) {
+      console.error("Update profile error:", e);
+      return { success: false, error: "Failed to update profile." };
+    }
+  };
+
+  // ============================================================
+  // CHANGE PASSWORD — Replace with actual API call to your database
+  // Example: await fetch('/api/user/password', { method: 'PUT', body: JSON.stringify({...}) })
+  // Currently validates locally and returns mock success.
+  // ============================================================
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Simulate network delay
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      if (!currentPassword || !newPassword) {
+        return { success: false, error: "Please fill in all fields." };
+      }
+      if (newPassword.length < 6) {
+        return { success: false, error: "New password must be at least 6 characters." };
+      }
+      // Mock: any current password is accepted for testing
+      return { success: true };
+    } catch (e) {
+      console.error("Change password error:", e);
+      return { success: false, error: "Failed to change password." };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -165,6 +231,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        updateProfile,
+        changePassword,
       }}
     >
       {children}

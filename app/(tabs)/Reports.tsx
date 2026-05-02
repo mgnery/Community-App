@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -19,20 +20,12 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  X,
 } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import { useTheme, ThemeColors } from "../hooks/useTheme";
 
-// --- Theme & Constants ---
-const THEME = {
-  primary: "#3b82f6",
-  background: "#ffffff",
-  card: "#ffffff",
-  border: "#e5e7eb",
-  foreground: "#111827",
-  mutedForeground: "#6b7280",
-  muted: "#f3f4f6",
-};
-
-const myReports = [
+const initialReports = [
   {
     id: 1,
     type: "Streetlight",
@@ -69,155 +62,227 @@ export default function Reports() {
   const [selectedType, setSelectedType] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  const [reports, setReports] = useState(initialReports);
+  const [formErrors, setFormErrors] = useState<{ type?: string; description?: string; location?: string }>({});
+  // ADDED: Photo upload state — stores the selected image URI
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const { colors } = useTheme();
+
+  // ============================================================
+  // PHOTO UPLOAD — Uses expo-image-picker to open the device
+  // gallery. The selected image URI is stored locally and can be
+  // uploaded to a server when the database is connected:
+  // Example: const formData = new FormData();
+  //          formData.append('photo', { uri, name, type });
+  //          await fetch('/api/reports/upload', { method: 'POST', body: formData });
+  // ============================================================
+  const handlePhotoUpload = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Permission Required", "Please allow access to your photo library to upload evidence.");
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setPhotoUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Image picker error:", error);
+      Alert.alert("Error", "Failed to open image picker. Please try again.");
+    }
+  };
+
+  // ADDED: Remove selected photo
+  const removePhoto = () => {
+    setPhotoUri(null);
+  };
 
   const handleSubmit = () => {
+    const errors: { type?: string; description?: string; location?: string } = {};
+    if (!selectedType) errors.type = "Please select an issue type.";
+    if (!description.trim()) errors.description = "Please describe the issue.";
+    if (!location.trim()) errors.location = "Please provide the location.";
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    const newReport = {
+      id: reports.length + 1,
+      type: selectedType,
+      description: description.trim(),
+      location: location.trim(),
+      status: "pending",
+      date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+      response: null,
+    };
+
+    setReports([newReport, ...reports]);
     Alert.alert("Success", "Report submitted successfully!");
     setView("list");
     setSelectedType("");
     setDescription("");
     setLocation("");
+    setPhotoUri(null);
+    setFormErrors({});
+  };
+
+  const handleCancel = () => {
+    setView("list");
+    setSelectedType("");
+    setDescription("");
+    setLocation("");
+    setPhotoUri(null);
+    setFormErrors({});
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
     const isCompleted = status === "completed";
     const isInProgress = status === "in-progress";
-
     return (
-      <View style={[
-        styles.badge,
-        isCompleted ? styles.bgGreen : isInProgress ? styles.bgOrange : styles.bgGray
-      ]}>
+      <View style={[s.badge, isCompleted ? s.bgGreen : isInProgress ? s.bgOrange : s.bgGray]}>
         {isCompleted ? <CheckCircle size={10} color="#15803d" /> : 
          isInProgress ? <Clock size={10} color="#c2410c" /> : 
          <AlertCircle size={10} color="#374151" />}
-        <Text style={[
-          styles.badgeText,
-          isCompleted ? styles.textGreen : isInProgress ? styles.textOrange : styles.textGray
-        ]}>{status}</Text>
+        <Text style={[s.badgeText, isCompleted ? s.textGreen : isInProgress ? s.textOrange : s.textGray]}>{status}</Text>
       </View>
     );
   };
 
+  const s = createStyles(colors);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerTitleRow}>
-            <FileText size={24} color="white" />
-            <Text style={styles.headerTitle}>Reports</Text>
+      <View style={s.header}>
+        <View style={s.headerTop}>
+          <View style={s.headerTitleRow}>
+            <FileText size={24} color={colors.headerText} />
+            <Text style={s.headerTitle}>Reports</Text>
           </View>
           {view === "list" && (
-            <TouchableOpacity style={styles.newReportBtn} onPress={() => setView("create")}>
-              <Text style={styles.newReportBtnText}>New Report</Text>
+            <TouchableOpacity style={s.newReportBtn} onPress={() => setView("create")}>
+              <Text style={s.newReportBtnText}>New Report</Text>
             </TouchableOpacity>
           )}
         </View>
-        <Text style={styles.headerSubtitle}>
+        <Text style={s.headerSubtitle}>
           {view === "list" ? "Track your community reports" : "Report a community issue"}
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={s.scrollContent}>
         {view === "list" ? (
-          /* Reports List */
-          <View style={styles.listContainer}>
-            {myReports.map((report) => (
-              <View key={report.id} style={styles.reportCard}>
-                <View style={styles.cardHeader}>
+          <View style={s.listContainer}>
+            {reports.map((report) => (
+              <View key={report.id} style={s.reportCard}>
+                <View style={s.cardHeader}>
                   <View style={{ flex: 1 }}>
-                    <View style={styles.cardTitleRow}>
-                      <Text style={styles.cardTitle}>{report.type} Issue</Text>
+                    <View style={s.cardTitleRow}>
+                      <Text style={s.cardTitle}>{report.type} Issue</Text>
                       <StatusBadge status={report.status} />
                     </View>
-                    <Text style={styles.cardDesc}>{report.description}</Text>
-                    <View style={styles.locationRow}>
-                      <MapPin size={12} color={THEME.mutedForeground} />
-                      <Text style={styles.locationText}>{report.location}</Text>
+                    <Text style={s.cardDesc}>{report.description}</Text>
+                    <View style={s.locationRow}>
+                      <MapPin size={12} color={colors.mutedForeground} />
+                      <Text style={s.locationText}>{report.location}</Text>
                     </View>
                   </View>
                 </View>
-
                 {report.response && (
-                  <View style={styles.responseContainer}>
-                    <Text style={styles.responseTextLabel}>Official Response:</Text>
-                    <Text style={styles.responseText}>{report.response}</Text>
+                  <View style={s.responseContainer}>
+                    <Text style={s.responseTextLabel}>Official Response:</Text>
+                    <Text style={s.responseText}>{report.response}</Text>
                   </View>
                 )}
-                <Text style={styles.dateText}>Reported on {report.date}</Text>
+                <Text style={s.dateText}>Reported on {report.date}</Text>
               </View>
             ))}
           </View>
         ) : (
-          /* Create Report Form */
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Issue Type</Text>
-              <View style={styles.typeGrid}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.form}>
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Issue Type</Text>
+              <View style={s.typeGrid}>
                 {issueTypes.map((type) => (
                   <TouchableOpacity
                     key={type}
-                    onPress={() => setSelectedType(type)}
-                    style={[
-                      styles.typeButton,
-                      selectedType === type ? styles.typeButtonSelected : styles.typeButtonUnselected
-                    ]}
+                    onPress={() => { setSelectedType(type); setFormErrors({ ...formErrors, type: undefined }); }}
+                    style={[s.typeButton, selectedType === type ? s.typeButtonSelected : s.typeButtonUnselected]}
                   >
-                    <Text style={[
-                      styles.typeButtonText,
-                      selectedType === type ? styles.textWhite : styles.textForeground
-                    ]}>{type}</Text>
+                    <Text style={[s.typeButtonText, selectedType === type ? s.textWhite : { color: colors.foreground }]}>{type}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
+              {formErrors.type && <Text style={s.errorText}>{formErrors.type}</Text>}
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Description</Text>
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Description</Text>
               <TextInput
-                style={styles.textArea}
+                style={s.textArea}
                 multiline
                 numberOfLines={4}
                 placeholder="Describe the issue in detail..."
-                placeholderTextColor={THEME.mutedForeground}
+                placeholderTextColor={colors.mutedForeground}
                 value={description}
-                onChangeText={setDescription}
+                onChangeText={(t) => { setDescription(t); setFormErrors({ ...formErrors, description: undefined }); }}
               />
+              {formErrors.description && <Text style={s.errorText}>{formErrors.description}</Text>}
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Location</Text>
-              <View style={styles.inputWithIcon}>
-                <MapPin size={18} color={THEME.mutedForeground} style={styles.inputIcon} />
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Location</Text>
+              <View style={s.inputWithIcon}>
+                <MapPin size={18} color={colors.mutedForeground} style={s.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={s.input}
                   placeholder="e.g., Purok 3, Basketball Court"
-                  placeholderTextColor={THEME.mutedForeground}
+                  placeholderTextColor={colors.mutedForeground}
                   value={location}
-                  onChangeText={setLocation}
+                  onChangeText={(t) => { setLocation(t); setFormErrors({ ...formErrors, location: undefined }); }}
                 />
               </View>
+              {formErrors.location && <Text style={s.errorText}>{formErrors.location}</Text>}
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Photo Evidence (Optional)</Text>
-              <TouchableOpacity style={styles.photoUpload}>
-                <Camera size={32} color={THEME.mutedForeground} />
-                <Text style={styles.photoUploadText}>Tap to upload photo</Text>
-              </TouchableOpacity>
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Photo Evidence (Optional)</Text>
+              {photoUri ? (
+                // ADDED: Show selected photo preview with remove button
+                <View style={s.photoPreviewContainer}>
+                  <Image source={{ uri: photoUri }} style={s.photoPreview} resizeMode="cover" />
+                  <TouchableOpacity style={s.removePhotoBtn} onPress={removePhoto}>
+                    <X size={16} color="white" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // ADDED: Tap to upload opens the real image picker
+                <TouchableOpacity style={s.photoUpload} onPress={handlePhotoUpload}>
+                  <Camera size={32} color={colors.mutedForeground} />
+                  <Text style={s.photoUploadText}>Tap to upload photo</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
-            <View style={styles.formActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setView("list")}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+            <View style={s.formActions}>
+              <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
+                <Text style={s.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.submitBtn, (!selectedType || !description || !location) && { opacity: 0.5 }]} 
-                onPress={handleSubmit}
-                disabled={!selectedType || !description || !location}
-              >
+              <TouchableOpacity style={s.submitBtn} onPress={handleSubmit}>
                 <Send size={18} color="white" />
-                <Text style={styles.submitBtnText}>Submit Report</Text>
+                <Text style={s.submitBtnText}>Submit Report</Text>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -227,58 +292,53 @@ export default function Reports() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.background },
-  header: { backgroundColor: THEME.primary, padding: 16, paddingBottom: 24 },
+const createStyles = (c: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
+  header: { backgroundColor: c.headerBg, padding: 16, paddingBottom: 24 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-  headerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 14 },
+  headerTitle: { color: c.headerText, fontSize: 20, fontWeight: 'bold' },
+  headerSubtitle: { color: c.headerSubtext, fontSize: 14 },
   newReportBtn: { backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  newReportBtnText: { color: THEME.primary, fontSize: 14, fontWeight: '600' },
-  
+  newReportBtnText: { color: c.primary, fontSize: 14, fontWeight: '600' },
   scrollContent: { padding: 16 },
   listContainer: { gap: 16 },
-  reportCard: { backgroundColor: THEME.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: THEME.border },
+  reportCard: { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start' },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: THEME.foreground },
-  cardDesc: { fontSize: 14, color: THEME.mutedForeground, marginBottom: 8 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: c.foreground },
+  cardDesc: { fontSize: 14, color: c.mutedForeground, marginBottom: 8 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: 12, color: THEME.mutedForeground },
-  
-  responseContainer: { backgroundColor: '#f9fafb', marginHorizontal: -16, padding: 16, marginTop: 12, borderTopWidth: 1, borderTopColor: THEME.border },
-  responseTextLabel: { fontSize: 12, fontWeight: 'bold', color: THEME.foreground, marginBottom: 4 },
-  responseText: { fontSize: 12, color: THEME.mutedForeground },
-  dateText: { fontSize: 10, color: THEME.mutedForeground, marginTop: 12 },
-
-  // Form Styles
+  locationText: { fontSize: 12, color: c.mutedForeground },
+  responseContainer: { backgroundColor: c.muted, marginHorizontal: -16, padding: 16, marginTop: 12, borderTopWidth: 1, borderTopColor: c.border },
+  responseTextLabel: { fontSize: 12, fontWeight: 'bold', color: c.foreground, marginBottom: 4 },
+  responseText: { fontSize: 12, color: c.mutedForeground },
+  dateText: { fontSize: 10, color: c.mutedForeground, marginTop: 12 },
   form: { gap: 16 },
   inputGroup: { gap: 8 },
-  label: { fontSize: 14, fontWeight: '600', color: THEME.foreground },
+  label: { fontSize: 14, fontWeight: '600', color: c.foreground },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeButton: { width: '48%', padding: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
-  typeButtonSelected: { backgroundColor: THEME.primary, borderColor: THEME.primary },
-  typeButtonUnselected: { backgroundColor: THEME.card, borderColor: THEME.border },
+  typeButtonSelected: { backgroundColor: c.primary, borderColor: c.primary },
+  typeButtonUnselected: { backgroundColor: c.card, borderColor: c.border },
   typeButtonText: { fontSize: 14, fontWeight: '500' },
   textWhite: { color: 'white' },
-  textForeground: { color: THEME.foreground },
-
-  textArea: { backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.border, borderRadius: 8, padding: 12, fontSize: 14, height: 100, textAlignVertical: 'top' },
-  inputWithIcon: { flexDirection: 'row', alignItems: 'center', backgroundColor: THEME.card, borderWidth: 1, borderColor: THEME.border, borderRadius: 8 },
+  textArea: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 12, fontSize: 14, height: 100, textAlignVertical: 'top', color: c.foreground },
+  inputWithIcon: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8 },
   inputIcon: { marginLeft: 12 },
-  input: { flex: 1, padding: 12, fontSize: 14 },
-  
-  photoUpload: { width: '100%', padding: 24, borderRadius: 8, borderStyle: 'dashed', borderWidth: 2, borderColor: THEME.border, backgroundColor: THEME.card, alignItems: 'center', justifyContent: 'center' },
-  photoUploadText: { fontSize: 14, color: THEME.mutedForeground, marginTop: 8 },
-
+  input: { flex: 1, padding: 12, fontSize: 14, color: c.foreground },
+  photoUpload: { width: '100%', padding: 24, borderRadius: 8, borderStyle: 'dashed', borderWidth: 2, borderColor: c.border, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' },
+  photoUploadText: { fontSize: 14, color: c.mutedForeground, marginTop: 8 },
+  // ADDED: Photo preview styles
+  photoPreviewContainer: { position: 'relative', borderRadius: 8, overflow: 'hidden' },
+  photoPreview: { width: '100%', height: 200, borderRadius: 8 },
+  removePhotoBtn: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 16, padding: 6 },
   formActions: { flexDirection: 'row', gap: 12, paddingTop: 8 },
-  cancelBtn: { flex: 1, backgroundColor: THEME.muted, padding: 14, borderRadius: 8, alignItems: 'center' },
-  cancelBtnText: { color: THEME.foreground, fontWeight: '600' },
-  submitBtn: { flex: 1, backgroundColor: THEME.primary, padding: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  cancelBtn: { flex: 1, backgroundColor: c.muted, padding: 14, borderRadius: 8, alignItems: 'center' },
+  cancelBtnText: { color: c.foreground, fontWeight: '600' },
+  submitBtn: { flex: 1, backgroundColor: c.primary, padding: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   submitBtnText: { color: 'white', fontWeight: '600' },
-
-  // Badges
+  errorText: { color: c.danger, fontSize: 12, marginTop: 2 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
   bgGreen: { backgroundColor: '#dcfce7' },

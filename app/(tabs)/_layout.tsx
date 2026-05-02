@@ -1,30 +1,30 @@
 import { Tabs } from "expo-router";
 import { Home, Bell, FileText, Gift, User } from "lucide-react-native";
 import { Platform } from "react-native";
+import { useTheme } from "../hooks/useTheme";
 
 export default function TabLayout() {
-  // Use your primary color from your theme logic
-  const primaryColor = "#3b82f6"; 
-  const inactiveColor = "#6b7280";
+  // Read colors from theme context so tab bar updates with dark mode
+  const { colors } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: primaryColor,
-        tabBarInactiveTintColor: inactiveColor,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {
           height: Platform.OS === 'ios' ? 104 : 80,
           paddingBottom: Platform.OS === 'ios' ? 40 : 20,
           paddingTop: 5,
-          backgroundColor: '#ffffff',
+          backgroundColor: colors.tabBar,
           borderTopWidth: 1,
-          borderTopColor: '#e5e7eb',
+          borderTopColor: colors.tabBorder,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',
         },
-        headerShown: false, // We usually handle headers inside the pages for the blue background look
+        headerShown: false,
       }}
     >
       <Tabs.Screen
