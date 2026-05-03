@@ -5,14 +5,7 @@ import {
   useState,
   ReactNode,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-// ============================================================
-// AUTH CONTEXT — Mock Authentication
-// When connecting to a real database, replace the signIn and
-// signUp functions below with actual API calls. The context
-// structure and isAuthenticated state can remain the same.
-// ============================================================
+import { supabase } from "../../lib/supabase";
 
 export interface User {
   email: string;
@@ -30,195 +23,201 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (fullName: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
-  // ADDED: Update profile fields and persist to storage
   updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error?: string }>;
-  // ADDED: Mock password change — validates locally, ready for API integration
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = "barangay-auth-user";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load persisted auth state on mount
+  // Fetch the profile from the database given an auth user
+  const fetchProfile = async (authUser: any) => {
+    if (!authUser) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error fetching profile:", error);
+      }
+
+      if (profile) {
+        setUser({
+          email: profile.email || authUser.email || "",
+          fullName: profile.full_name || "",
+          phone: profile.phone || "",
+          purok: profile.purok || "",
+          barangay: profile.barangay || "",
+          residentId: profile.resident_id || "",
+        });
+      } else {
+        // Fallback if profile doesn't exist yet (e.g. immediately after signup if trigger is slow)
+        setUser({
+          email: authUser.email || "",
+          fullName: authUser.user_metadata?.full_name || "New Resident",
+          phone: "",
+          purok: "",
+          barangay: "",
+          residentId: authUser.user_metadata?.resident_id || "",
+        });
+      }
+    } catch (e) {
+      console.error("Profile fetch exception:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadAuth = async () => {
-      try {
-        const savedUser = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
-        }
-      } catch (e) {
-        console.error("Failed to load auth state", e);
-      } finally {
+    // 1. Check active session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchProfile(session.user);
+      } else {
         setIsLoading(false);
       }
+    });
+
+    // 2. Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          setIsLoading(true);
+          await fetchProfile(session?.user);
+        } else if (event === "SIGNED_OUT") {
+          setUser(null);
+          setIsLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
     };
-    loadAuth();
   }, []);
 
-  // ============================================================
-  // MOCK SIGN IN — Replace with actual API call to your database
-  // Example: const response = await fetch('/api/auth/login', { ... })
-  // ============================================================
   const signIn = async (
     email: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      // Basic validation
       if (!email || !password) {
         return { success: false, error: "Please fill in all fields." };
       }
 
-      // ADDED: Email format validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return { success: false, error: "Please enter a valid email address." };
-      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      // ADDED: Password minimum length check
-      if (password.length < 6) {
-        return {
-          success: false,
-          error: "Password must be at least 6 characters.",
-        };
-      }
-
-      // Mock success — accept any valid-looking credentials for testing
-      const mockUser: User = {
-        email: email,
-        fullName: "Juan Dela Cruz",
-        phone: "+63 912 345 6789",
-        purok: "Purok 3",
-        barangay: "San Isidro",
-        residentId: "BI-2024-00123",
-      };
-
-      setUser(mockUser);
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
+      if (error) throw error;
       return { success: true };
-    } catch (e) {
+    } catch (e: any) {
       console.error("Sign in error:", e);
-      return { success: false, error: "An unexpected error occurred." };
+      return { success: false, error: e.message || "An unexpected error occurred." };
     }
   };
 
-  // ============================================================
-  // MOCK SIGN UP — Replace with actual API call to your database
-  // Example: const response = await fetch('/api/auth/register', { ... })
-  // ============================================================
   const signUp = async (
     fullName: string,
     email: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      // Basic validation
       if (!fullName || !email || !password) {
         return { success: false, error: "Please fill in all fields." };
       }
 
-      // ADDED: Email format validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return { success: false, error: "Please enter a valid email address." };
-      }
-
-      // ADDED: Password minimum length check
       if (password.length < 6) {
-        return {
-          success: false,
-          error: "Password must be at least 6 characters.",
-        };
+        return { success: false, error: "Password must be at least 6 characters." };
       }
 
-      // ADDED: Full name minimum length check
-      if (fullName.trim().length < 2) {
-        return { success: false, error: "Please enter your full name." };
-      }
+      const residentId = `BI-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`;
 
-      // Mock success — create user with provided info
-      const mockUser: User = {
-        email: email,
-        fullName: fullName,
-        phone: "",
-        purok: "",
-        barangay: "",
-        residentId: `BI-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5, "0")}`,
-      };
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            resident_id: residentId,
+          },
+        },
+      });
 
-      setUser(mockUser);
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
+      if (error) throw error;
       return { success: true };
-    } catch (e) {
+    } catch (e: any) {
       console.error("Sign up error:", e);
-      return { success: false, error: "An unexpected error occurred." };
+      return { success: false, error: e.message || "An unexpected error occurred." };
     }
   };
 
   const signOut = async () => {
-    setUser(null);
-    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+    await supabase.auth.signOut();
   };
 
-  // ============================================================
-  // UPDATE PROFILE — Replace with actual API call to your database
-  // Example: await fetch('/api/user/profile', { method: 'PUT', body: JSON.stringify(updates) })
-  // ============================================================
   const updateProfile = async (
     updates: Partial<User>
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       if (!user) return { success: false, error: "Not authenticated." };
 
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return { success: false, error: "Session expired." };
 
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+      // Map User interface back to database columns
+      const dbUpdates: any = {};
+      if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
+      if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+      if (updates.purok !== undefined) dbUpdates.purok = updates.purok;
+      if (updates.barangay !== undefined) dbUpdates.barangay = updates.barangay;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(dbUpdates)
+        .eq("id", session.user.id);
+
+      if (error) throw error;
+
+      // Update local state to reflect changes immediately
+      setUser({ ...user, ...updates });
       return { success: true };
-    } catch (e) {
+    } catch (e: any) {
       console.error("Update profile error:", e);
-      return { success: false, error: "Failed to update profile." };
+      return { success: false, error: e.message || "Failed to update profile." };
     }
   };
 
-  // ============================================================
-  // CHANGE PASSWORD — Replace with actual API call to your database
-  // Example: await fetch('/api/user/password', { method: 'PUT', body: JSON.stringify({...}) })
-  // Currently validates locally and returns mock success.
-  // ============================================================
   const changePassword = async (
-    currentPassword: string,
+    currentPassword: string, // current password isn't strictly needed for supabase.auth.updateUser but keeping it for UI compatibility
     newPassword: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      if (!currentPassword || !newPassword) {
-        return { success: false, error: "Please fill in all fields." };
-      }
-      if (newPassword.length < 6) {
+      if (!newPassword || newPassword.length < 6) {
         return { success: false, error: "New password must be at least 6 characters." };
       }
-      // Mock: any current password is accepted for testing
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
       return { success: true };
-    } catch (e) {
+    } catch (e: any) {
       console.error("Change password error:", e);
-      return { success: false, error: "Failed to change password." };
+      return { success: false, error: e.message || "Failed to change password." };
     }
   };
 

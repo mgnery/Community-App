@@ -7,7 +7,7 @@ import {
   Info,
   MapPin,
 } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   ScrollView,
@@ -16,62 +16,93 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemeColors, useTheme } from "../hooks/useTheme";
-
-// ============================================================
-// MOCK AYUDA PROGRAMS — Replace with API fetch from database
-// ============================================================
-const ayudaPrograms = [
-  {
-    id: 1,
-    title: "Financial Assistance",
-    description: "Cash aid for eligible families affected by recent typhoon",
-    amount: "₱3,000",
-    status: "active",
-    startDate: "April 15, 2026",
-    endDate: "April 30, 2026",
-    distribution: "Available in both digital and physical",
-    eligibility: "Families with damaged homes",
-  },
-  {
-    id: 2,
-    title: "Educational Support",
-    description: "School supplies and allowance for students",
-    amount: "₱1,500",
-    status: "upcoming",
-    startDate: "May 1, 2026",
-    endDate: "May 15, 2026",
-    distribution: "Digital only",
-    eligibility: "Students enrolled in public schools",
-  },
-  {
-    id: 3,
-    title: "Medical Assistance",
-    description: "Healthcare support for senior citizens",
-    amount: "₱2,000",
-    status: "completed",
-    startDate: "March 1, 2026",
-    endDate: "March 31, 2026",
-    distribution: "Physical distribution",
-    eligibility: "Senior citizens 60+",
-  },
-];
-
-const initialApplications = [
-  { id: 1, program: "Financial Assistance", status: "approved", appliedDate: "April 5, 2026", method: "digital", amount: "₱3,000" },
-  { id: 2, program: "Educational Support", status: "pending", appliedDate: "April 6, 2026", method: "physical", amount: "₱1,500" },
-];
+import { supabase } from "../../lib/supabase";
 
 export default function Ayuda() {
   const [view, setView] = useState<"programs" | "applications" | "apply">("programs");
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [distributionMethod, setDistributionMethod] = useState<"digital" | "physical">("digital");
   const [bankDetails, setBankDetails] = useState({ accountName: "", accountNumber: "", bankName: "" });
-  const [applications, setApplications] = useState(initialApplications);
+  
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formErrors, setFormErrors] = useState<{ accountName?: string; accountNumber?: string; bankName?: string }>({});
   const { colors } = useTheme();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    await Promise.all([fetchPrograms(), fetchApplications()]);
+    setIsLoading(false);
+  };
+
+  const fetchPrograms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("ayuda_programs")
+        .select("*")
+        .order("id", { ascending: true });
+        
+      if (error) {
+        console.error("Error fetching programs:", error);
+      } else if (data) {
+        // Map snake_case from DB to camelCase for UI compatibility
+        const formattedPrograms = data.map(p => ({
+          ...p,
+          startDate: p.start_date ? new Date(p.start_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "TBA",
+          endDate: p.end_date ? new Date(p.end_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "TBA",
+        }));
+        setPrograms(formattedPrograms);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchApplications = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from("ayuda_applications")
+        .select(`
+          id,
+          status,
+          method,
+          created_at,
+          ayuda_programs ( title, amount )
+        `)
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching applications:", error);
+      } else if (data) {
+        const formattedApps = data.map((app: any) => ({
+          id: app.id,
+          program: app.ayuda_programs?.title || "Unknown Program",
+          amount: app.ayuda_programs?.amount || "—",
+          status: app.status,
+          appliedDate: new Date(app.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+          method: app.method,
+        }));
+        setApplications(formattedApps);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const resetForm = () => {
     setSelectedProgram(null);
@@ -80,7 +111,7 @@ export default function Ayuda() {
     setFormErrors({});
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (distributionMethod === "digital") {
       const errors: { accountName?: string; accountNumber?: string; bankName?: string } = {};
       if (!bankDetails.accountName.trim()) errors.accountName = "Account name is required.";
@@ -89,19 +120,36 @@ export default function Ayuda() {
       if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
     }
 
-    const newApplication = {
-      id: applications.length + 1,
-      program: selectedProgram.title,
-      status: "pending",
-      appliedDate: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-      method: distributionMethod,
-      amount: selectedProgram.amount,
-    };
+    try {
+      setIsSubmitting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("You must be logged in to apply.");
 
-    setApplications([...applications, newApplication]);
-    Alert.alert("Success", "Application submitted successfully!");
-    resetForm();
-    setView("applications");
+      const insertData = {
+        program_id: selectedProgram.id,
+        user_id: session.user.id,
+        status: "pending",
+        method: distributionMethod,
+        bank_details: distributionMethod === "digital" ? bankDetails : null,
+      };
+
+      const { error } = await supabase.from("ayuda_applications").insert(insertData);
+      
+      if (error) throw error;
+
+      Alert.alert("Success", "Application submitted successfully!");
+      resetForm();
+      setView("applications");
+      
+      // Refresh applications list
+      await fetchApplications();
+      
+    } catch (e: any) {
+      console.error("Application error:", e);
+      Alert.alert("Error", e.message || "Failed to submit application.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => { resetForm(); setView("programs"); };
@@ -130,115 +178,131 @@ export default function Ayuda() {
       </View>
 
       <ScrollView contentContainerStyle={s.scrollContent}>
-        {view === "programs" && (
-          <View style={s.listGap}>
-            {ayudaPrograms.map((program) => (
-              <View key={program.id} style={s.card}>
-                <View style={[s.statusBar, program.status === "active" ? s.bgGreen : program.status === "upcoming" ? s.bgOrange : s.bgGray]} />
-                <View style={s.cardPadding}>
-                  <View style={s.cardHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.cardTitle}>{program.title}</Text>
-                      <View style={[s.statusBadge, program.status === "active" ? s.badgeGreen : program.status === "upcoming" ? s.badgeOrange : s.badgeGray]}>
-                        <Text style={[s.statusText, program.status === "active" ? s.textGreen : program.status === "upcoming" ? s.textOrange : s.textGray]}>{program.status}</Text>
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            {view === "programs" && (
+              <View style={s.listGap}>
+                {programs.length === 0 ? (
+                  <Text style={{ textAlign: "center", color: colors.mutedForeground, marginTop: 20 }}>No active programs at this time.</Text>
+                ) : (
+                  programs.map((program) => (
+                    <View key={program.id} style={s.card}>
+                      <View style={[s.statusBar, program.status === "active" ? s.bgGreen : program.status === "upcoming" ? s.bgOrange : s.bgGray]} />
+                      <View style={s.cardPadding}>
+                        <View style={s.cardHeader}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.cardTitle}>{program.title}</Text>
+                            <View style={[s.statusBadge, program.status === "active" ? s.badgeGreen : program.status === "upcoming" ? s.badgeOrange : s.badgeGray]}>
+                              <Text style={[s.statusText, program.status === "active" ? s.textGreen : program.status === "upcoming" ? s.textOrange : s.textGray]}>{program.status}</Text>
+                            </View>
+                          </View>
+                          <View style={s.amountBox}><Text style={s.amountLabel}>Amount</Text><Text style={s.amountValue}>{program.amount}</Text></View>
+                        </View>
+                        <Text style={s.description}>{program.description}</Text>
+                        <View style={s.detailsList}>
+                          <View style={s.detailItem}><Calendar size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.startDate} - {program.endDate}</Text></View>
+                          <View style={s.detailItem}><MapPin size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.distribution}</Text></View>
+                          <View style={s.detailItem}><Info size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.eligibility}</Text></View>
+                        </View>
+                        {program.status === "active" && (
+                          <TouchableOpacity style={s.primaryBtn} onPress={() => { setSelectedProgram(program); setView("apply"); }}>
+                            <Text style={s.primaryBtnText}>Apply Now</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
-                    <View style={s.amountBox}><Text style={s.amountLabel}>Amount</Text><Text style={s.amountValue}>{program.amount}</Text></View>
-                  </View>
-                  <Text style={s.description}>{program.description}</Text>
-                  <View style={s.detailsList}>
-                    <View style={s.detailItem}><Calendar size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.startDate} - {program.endDate}</Text></View>
-                    <View style={s.detailItem}><MapPin size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.distribution}</Text></View>
-                    <View style={s.detailItem}><Info size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.eligibility}</Text></View>
-                  </View>
-                  {program.status === "active" && (
-                    <TouchableOpacity style={s.primaryBtn} onPress={() => { setSelectedProgram(program); setView("apply"); }}>
-                      <Text style={s.primaryBtnText}>Apply Now</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {view === "applications" && (
-          <View style={s.listGap}>
-            {applications.map((app) => (
-              <View key={app.id} style={[s.card, s.cardPadding]}>
-                <View style={s.cardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.cardTitle}>{app.program}</Text>
-                    <View style={[s.statusBadge, app.status === "approved" ? s.badgeGreen : s.badgeOrange]}>
-                      {app.status === "approved" ? <CheckCircle size={10} color={colors.success} /> : <Clock size={10} color={colors.warning} />}
-                      <Text style={[s.statusText, app.status === "approved" ? s.textGreen : s.textOrange]}> {app.status}</Text>
-                    </View>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}><Text style={s.amountLabel}>Amount</Text><Text style={s.amountValue}>{app.amount}</Text></View>
-                </View>
-                <View style={s.appMetaRow}><Text style={s.detailText}>Applied on:</Text><Text style={s.metaValue}>{app.appliedDate}</Text></View>
-                <View style={s.appMetaRow}><Text style={s.detailText}>Distribution method:</Text><Text style={[s.metaValue, { textTransform: 'capitalize' }]}>{app.method}</Text></View>
-                {app.status === "approved" && (
-                  <View style={s.approvedNotice}><Text style={s.approvedNoticeText}>✓ Your application has been approved! Please check the program schedule for distribution details.</Text></View>
+                  ))
                 )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {view === "apply" && selectedProgram && (
-          <View style={s.listGap}>
-            <View style={[s.card, s.cardPadding]}>
-              <Text style={s.cardTitle}>{selectedProgram.title}</Text>
-              <Text style={s.description}>{selectedProgram.description}</Text>
-              <Text style={s.amountValue}>{selectedProgram.amount}</Text>
-            </View>
-
-            <Text style={s.formLabel}>Distribution Method</Text>
-            <View style={s.methodGrid}>
-              <TouchableOpacity style={[s.methodCard, distributionMethod === "digital" && s.methodCardActive]} onPress={() => { setDistributionMethod("digital"); setFormErrors({}); }}>
-                <CreditCard size={24} color={distributionMethod === "digital" ? "white" : colors.foreground} />
-                <Text style={[s.methodTitle, distributionMethod === "digital" && s.textWhite]}>Digital</Text>
-                <Text style={[s.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.methodCard, distributionMethod === "physical" && s.methodCardActive]} onPress={() => { setDistributionMethod("physical"); setFormErrors({}); }}>
-                <MapPin size={24} color={distributionMethod === "physical" ? "white" : colors.foreground} />
-                <Text style={[s.methodTitle, distributionMethod === "physical" && s.textWhite]}>Physical</Text>
-                <Text style={[s.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
-              </TouchableOpacity>
-            </View>
-
-            {distributionMethod === "digital" ? (
-              <View style={s.listGap}>
-                <Text style={s.formLabel}>Bank Details</Text>
-                <View>
-                  <TextInput style={s.input} placeholder="Account Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.accountName} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountName: t }); setFormErrors({ ...formErrors, accountName: undefined }); }} />
-                  {formErrors.accountName && <Text style={s.errorText}>{formErrors.accountName}</Text>}
-                </View>
-                <View>
-                  <TextInput style={s.input} placeholder="Account Number" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={bankDetails.accountNumber} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountNumber: t }); setFormErrors({ ...formErrors, accountNumber: undefined }); }} />
-                  {formErrors.accountNumber && <Text style={s.errorText}>{formErrors.accountNumber}</Text>}
-                </View>
-                <View>
-                  <TextInput style={s.input} placeholder="Bank Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.bankName} onChangeText={(t) => { setBankDetails({ ...bankDetails, bankName: t }); setFormErrors({ ...formErrors, bankName: undefined }); }} />
-                  {formErrors.bankName && <Text style={s.errorText}>{formErrors.bankName}</Text>}
-                </View>
-              </View>
-            ) : (
-              <View style={s.infoBox}>
-                <Info size={18} color="#2563eb" />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.infoBoxTitle}>Physical Distribution Schedule:</Text>
-                  <Text style={s.infoBoxText}>Date: April 20-25, 2026{"\n"}Time: 9:00 AM - 4:00 PM{"\n"}Location: Barangay Hall{"\n\n"}Please bring a valid ID.</Text>
-                </View>
               </View>
             )}
 
-            <View style={s.actionRow}>
-              <TouchableOpacity style={[s.secondaryBtn, { flex: 1 }]} onPress={handleCancel}><Text style={s.secondaryBtnText}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={[s.primaryBtn, { flex: 1, flexDirection: 'row', gap: 8 }]} onPress={handleApply}><CheckCircle size={18} color="white" /><Text style={s.primaryBtnText}>Submit</Text></TouchableOpacity>
-            </View>
-          </View>
+            {view === "applications" && (
+              <View style={s.listGap}>
+                {applications.length === 0 ? (
+                  <Text style={{ textAlign: "center", color: colors.mutedForeground, marginTop: 20 }}>You have not applied for any programs yet.</Text>
+                ) : (
+                  applications.map((app) => (
+                    <View key={app.id} style={[s.card, s.cardPadding]}>
+                      <View style={s.cardHeader}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.cardTitle}>{app.program}</Text>
+                          <View style={[s.statusBadge, app.status === "approved" ? s.badgeGreen : app.status === "rejected" ? s.badgeRed : s.badgeOrange]}>
+                            {app.status === "approved" ? <CheckCircle size={10} color={colors.success} /> : <Clock size={10} color={colors.warning} />}
+                            <Text style={[s.statusText, app.status === "approved" ? s.textGreen : app.status === "rejected" ? s.textRed : s.textOrange]}> {app.status}</Text>
+                          </View>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}><Text style={s.amountLabel}>Amount</Text><Text style={s.amountValue}>{app.amount}</Text></View>
+                      </View>
+                      <View style={s.appMetaRow}><Text style={s.detailText}>Applied on:</Text><Text style={s.metaValue}>{app.appliedDate}</Text></View>
+                      <View style={s.appMetaRow}><Text style={s.detailText}>Distribution method:</Text><Text style={[s.metaValue, { textTransform: 'capitalize' }]}>{app.method}</Text></View>
+                      {app.status === "approved" && (
+                        <View style={s.approvedNotice}><Text style={s.approvedNoticeText}>✓ Your application has been approved! Please check the program schedule for distribution details.</Text></View>
+                      )}
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {view === "apply" && selectedProgram && (
+              <View style={s.listGap}>
+                <View style={[s.card, s.cardPadding]}>
+                  <Text style={s.cardTitle}>{selectedProgram.title}</Text>
+                  <Text style={s.description}>{selectedProgram.description}</Text>
+                  <Text style={s.amountValue}>{selectedProgram.amount}</Text>
+                </View>
+
+                <Text style={s.formLabel}>Distribution Method</Text>
+                <View style={s.methodGrid}>
+                  <TouchableOpacity style={[s.methodCard, distributionMethod === "digital" && s.methodCardActive]} onPress={() => { setDistributionMethod("digital"); setFormErrors({}); }}>
+                    <CreditCard size={24} color={distributionMethod === "digital" ? "white" : colors.foreground} />
+                    <Text style={[s.methodTitle, distributionMethod === "digital" && s.textWhite]}>Digital</Text>
+                    <Text style={[s.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.methodCard, distributionMethod === "physical" && s.methodCardActive]} onPress={() => { setDistributionMethod("physical"); setFormErrors({}); }}>
+                    <MapPin size={24} color={distributionMethod === "physical" ? "white" : colors.foreground} />
+                    <Text style={[s.methodTitle, distributionMethod === "physical" && s.textWhite]}>Physical</Text>
+                    <Text style={[s.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {distributionMethod === "digital" ? (
+                  <View style={s.listGap}>
+                    <Text style={s.formLabel}>Bank Details</Text>
+                    <View>
+                      <TextInput style={s.input} placeholder="Account Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.accountName} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountName: t }); setFormErrors({ ...formErrors, accountName: undefined }); }} />
+                      {formErrors.accountName && <Text style={s.errorText}>{formErrors.accountName}</Text>}
+                    </View>
+                    <View>
+                      <TextInput style={s.input} placeholder="Account Number" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={bankDetails.accountNumber} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountNumber: t }); setFormErrors({ ...formErrors, accountNumber: undefined }); }} />
+                      {formErrors.accountNumber && <Text style={s.errorText}>{formErrors.accountNumber}</Text>}
+                    </View>
+                    <View>
+                      <TextInput style={s.input} placeholder="Bank Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.bankName} onChangeText={(t) => { setBankDetails({ ...bankDetails, bankName: t }); setFormErrors({ ...formErrors, bankName: undefined }); }} />
+                      {formErrors.bankName && <Text style={s.errorText}>{formErrors.bankName}</Text>}
+                    </View>
+                  </View>
+                ) : (
+                  <View style={s.infoBox}>
+                    <Info size={18} color="#2563eb" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.infoBoxTitle}>Physical Distribution Schedule:</Text>
+                      <Text style={s.infoBoxText}>Check the program details for distribution dates. Please bring a valid ID when claiming at the Barangay Hall.</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={s.actionRow}>
+                  <TouchableOpacity style={[s.secondaryBtn, { flex: 1 }]} onPress={handleCancel} disabled={isSubmitting}><Text style={s.secondaryBtnText}>Cancel</Text></TouchableOpacity>
+                  <TouchableOpacity style={[s.primaryBtn, { flex: 1, flexDirection: 'row', gap: 8 }]} onPress={handleApply} disabled={isSubmitting}>
+                    {isSubmitting ? <ActivityIndicator color="white" /> : <><CheckCircle size={18} color="white" /><Text style={s.primaryBtnText}>Submit</Text></>}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -292,8 +356,8 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   infoBoxText: { fontSize: 12, color: "#1e40af", lineHeight: 18 },
   actionRow: { flexDirection: "row", gap: 12 },
   errorText: { color: c.danger, fontSize: 12, marginTop: 4 },
-  bgGreen: { backgroundColor: c.success }, bgOrange: { backgroundColor: c.warning }, bgGray: { backgroundColor: "#9ca3af" },
+  bgGreen: { backgroundColor: c.success }, bgOrange: { backgroundColor: c.warning }, bgGray: { backgroundColor: "#9ca3af" }, badgeRed: { backgroundColor: "#fef2f2" },
   badgeGreen: { backgroundColor: "#f0fdf4" }, badgeOrange: { backgroundColor: "#fff7ed" }, badgeGray: { backgroundColor: "#f3f4f6" },
-  textGreen: { color: c.success }, textOrange: { color: c.warning }, textGray: { color: "#4b5563" },
+  textGreen: { color: c.success }, textOrange: { color: c.warning }, textGray: { color: "#4b5563" }, textRed: { color: c.danger },
   textWhite: { color: "white" },
 });
