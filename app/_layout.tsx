@@ -1,9 +1,9 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-import { ThemeProvider } from "./hooks/useTheme";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { TabResetProvider } from "./hooks/useTabReset";
-import { ActivityIndicator, View, StyleSheet } from "react-native";
+import { ThemeProvider } from "./hooks/useTheme";
 
 // ============================================================
 // Root layout — handles auth-based routing
@@ -28,7 +28,7 @@ function RootNavigator() {
       // User is signed in but still on auth screens → redirect to main app
       router.replace("/(tabs)");
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isAuthenticated, isLoading, segments, router]);
 
   // Show loading screen while checking auth state
   if (isLoading) {
@@ -64,6 +64,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f5f6f8",
   },
 });

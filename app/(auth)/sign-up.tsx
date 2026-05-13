@@ -249,25 +249,28 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingBottom: 40,
   },
   backButton: {
-    marginTop: 8,
-    marginBottom: 16,
-    width: 40,
-    height: 40,
+    marginTop: 10,
+    marginBottom: 20,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 14,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 36,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 30,
+    fontWeight: "800",
     color: COLORS.textDark,
     marginBottom: 6,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 15,
@@ -275,25 +278,28 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     backgroundColor: COLORS.errorBg,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#fecaca",
   },
   errorText: {
     color: COLORS.error,
     fontSize: 14,
     textAlign: "center",
+    fontWeight: "500",
   },
   form: {
-    gap: 20,
-    marginBottom: 32,
+    gap: 22,
+    marginBottom: 36,
   },
   fieldGroup: {
     gap: 8,
   },
   label: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
     color: COLORS.textDark,
   },
   inputContainer: {
@@ -301,13 +307,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.white,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
     paddingHorizontal: 14,
-    height: 52,
+    height: 54,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
@@ -316,16 +322,21 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   eyeButton: {
-    padding: 6,
+    padding: 8,
     marginLeft: 4,
   },
   signUpButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 14,
-    paddingVertical: 16,
+    paddingVertical: 17,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    marginBottom: 24,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -333,7 +344,8 @@ const styles = StyleSheet.create({
   signUpButtonText: {
     color: COLORS.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   signInPrompt: {
     flexDirection: "row",
@@ -347,6 +359,6 @@ const styles = StyleSheet.create({
   signInLink: {
     fontSize: 14,
     color: COLORS.primary,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

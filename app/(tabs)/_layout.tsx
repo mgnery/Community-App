@@ -15,16 +15,20 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 104 : 80,
-          paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-          paddingTop: 5,
+          height: Platform.OS === 'ios' ? 100 : 76,
+          paddingBottom: Platform.OS === 'ios' ? 36 : 18,
+          paddingTop: 8,
           backgroundColor: colors.tabBar,
-          borderTopWidth: 1,
-          borderTopColor: colors.tabBorder,
+          borderTopWidth: 0,
+          ...colors.shadow as any,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
+          fontSize: 11,
+          fontWeight: '600',
+          letterSpacing: 0.1,
+        },
+        tabBarItemStyle: {
+          paddingTop: 2,
         },
         headerShown: false,
         animation: 'shift',
@@ -34,21 +38,21 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => <Home size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Home size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="Updates"
         options={{
           title: "Updates",
-          tabBarIcon: ({ color }) => <Bell size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Bell size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="Reports"
         options={{
           title: "Reports",
-          tabBarIcon: ({ color }) => <FileText size={24} color={color} />,
+          tabBarIcon: ({ color }) => <FileText size={22} color={color} />,
         }}
         listeners={{
           tabPress: () => emit("Reports"),
@@ -58,7 +62,7 @@ export default function TabLayout() {
         name="Ayuda"
         options={{
           title: "Ayuda",
-          tabBarIcon: ({ color }) => <Gift size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Gift size={22} color={color} />,
         }}
         listeners={{
           tabPress: () => emit("Ayuda"),
@@ -68,7 +72,7 @@ export default function TabLayout() {
         name="Profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => <User size={24} color={color} />,
+          tabBarIcon: ({ color }) => <User size={22} color={color} />,
         }}
         listeners={{
           tabPress: () => emit("Profile"),

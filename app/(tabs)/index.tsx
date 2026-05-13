@@ -1,26 +1,25 @@
-import React, { useState, useCallback, useEffect } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-} from "react-native";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Bell,
   FileText,
   Heart,
-  TrendingUp,
-  Users,
   MapPin,
+  TrendingUp,
 } from "lucide-react-native";
-import { useAuth } from "../hooks/useAuth";
-import { useTheme, ThemeColors } from "../hooks/useTheme";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../hooks/useAuth";
+import { ThemeColors, useTheme } from "../hooks/useTheme";
 
 const quickActions = [
   { label: "Report Issue", icon: FileText, path: "Reports", color: null as string | null },
@@ -100,7 +99,7 @@ export default function Home() {
           time: getRelativeTime(u.created_at),
           status: u.category?.toLowerCase() === "event" ? "event"
             : u.category?.toLowerCase() === "notice" ? "notice"
-            : "announcement",
+              : "announcement",
         }));
         setRecentActivities(formatted);
       }
@@ -153,7 +152,7 @@ export default function Home() {
           />
         }
       >
-        
+
         {/* Header */}
         <View style={s.header}>
           <View style={s.locationBadge}>
@@ -207,24 +206,27 @@ export default function Home() {
                 <Text style={s.sectionTitle}>Recent Updates</Text>
                 <TrendingUp size={16} color={colors.primary} />
               </View>
-              
+
               <View style={s.activityList}>
                 {recentActivities.length === 0 ? (
                   <Text style={{ textAlign: "center", color: colors.mutedForeground, marginTop: 8 }}>No recent updates.</Text>
                 ) : (
                   recentActivities.map((activity) => (
-                    <View key={activity.id} style={s.activityCard}>
+                    <View key={activity.id} style={[s.activityCard, {
+                      borderLeftColor: activity.status === "event" ? '#22c55e' :
+                        activity.status === "notice" ? '#f97316' : '#3b82f6'
+                    }]}>
                       <View style={s.activityHeader}>
                         <Text style={s.activityTitle}>{activity.title}</Text>
                         <View style={[
                           s.statusBadge,
-                          activity.status === "event" ? s.bgGreen : 
-                          activity.status === "notice" ? s.bgOrange : s.bgBlue
+                          activity.status === "event" ? s.bgGreen :
+                            activity.status === "notice" ? s.bgOrange : s.bgBlue
                         ]}>
                           <Text style={[
                             s.statusText,
-                            activity.status === "event" ? s.textGreen : 
-                            activity.status === "notice" ? s.textOrange : s.textBlue
+                            activity.status === "event" ? s.textGreen :
+                              activity.status === "notice" ? s.textOrange : s.textBlue
                           ]}>
                             {activity.status}
                           </Text>
@@ -247,30 +249,30 @@ export default function Home() {
 
 const createStyles = (c: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
-  scrollContent: { padding: 16, gap: 24 },
-  header: { paddingTop: 8 },
-  locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  locationText: { fontSize: 14, color: c.mutedForeground },
-  welcomeText: { fontSize: 24, fontWeight: 'bold', color: c.foreground },
-  subtitle: { fontSize: 14, color: c.mutedForeground },
+  scrollContent: { padding: 20, paddingBottom: 32, gap: 28 },
+  header: { paddingTop: 12, paddingBottom: 4 },
+  locationBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, backgroundColor: c.primaryLight, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  locationText: { fontSize: 13, color: c.primary, fontWeight: '500' },
+  welcomeText: { fontSize: 26, fontWeight: '800', color: c.foreground, letterSpacing: -0.3 },
+  subtitle: { fontSize: 14, color: c.mutedForeground, marginTop: 2 },
   gridThree: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, backgroundColor: c.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border, justifyContent: 'space-between' },
-  statValue: { fontSize: 20, fontWeight: 'bold', color: c.foreground, marginVertical: 4 },
-  statLabel: { fontSize: 10, color: c.mutedForeground, lineHeight: 12 },
-  section: { gap: 12 },
+  statCard: { flex: 1, backgroundColor: c.cardElevated, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.border, justifyContent: 'space-between', ...(c.shadowSm as any) },
+  statValue: { fontSize: 22, fontWeight: '800', color: c.foreground, marginVertical: 6, letterSpacing: -0.5 },
+  statLabel: { fontSize: 10, color: c.mutedForeground, lineHeight: 13, fontWeight: '500' },
+  section: { gap: 14 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: c.foreground },
-  actionCard: { flex: 1, alignItems: 'center', backgroundColor: c.card, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 8, borderWidth: 1, borderColor: c.border },
-  iconCircle: { padding: 12, borderRadius: 99, marginBottom: 8 },
-  actionLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center', color: c.foreground },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: c.foreground, letterSpacing: -0.2 },
+  actionCard: { flex: 1, alignItems: 'center', backgroundColor: c.cardElevated, borderRadius: 16, paddingVertical: 20, paddingHorizontal: 8, borderWidth: 1, borderColor: c.border, ...(c.shadowSm as any) },
+  iconCircle: { padding: 14, borderRadius: 99, marginBottom: 10 },
+  actionLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center', color: c.foreground },
   activityList: { gap: 12 },
-  activityCard: { backgroundColor: c.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: c.border },
-  activityHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
+  activityCard: { backgroundColor: c.card, padding: 16, paddingLeft: 20, borderRadius: 16, borderWidth: 1, borderColor: c.border, borderLeftWidth: 4, ...(c.shadowSm as any) },
+  activityHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   activityTitle: { fontSize: 14, fontWeight: '600', color: c.foreground, flex: 1, marginRight: 8 },
-  activityDesc: { fontSize: 12, color: c.mutedForeground, marginBottom: 8 },
-  activityTime: { fontSize: 10, color: c.mutedForeground },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  statusText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
+  activityDesc: { fontSize: 13, color: c.mutedForeground, marginBottom: 8, lineHeight: 19 },
+  activityTime: { fontSize: 11, color: c.mutedForeground, fontWeight: '500' },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  statusText: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize', letterSpacing: 0.3 },
   bgGreen: { backgroundColor: '#dcfce7' },
   textGreen: { color: '#15803d' },
   bgOrange: { backgroundColor: '#ffedd5' },

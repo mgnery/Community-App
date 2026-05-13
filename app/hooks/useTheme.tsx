@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Theme = "light" | "dark";
@@ -12,58 +13,96 @@ type Theme = "light" | "dark";
 export interface ThemeColors {
   primary: string;
   primaryLight: string;
+  primaryHover: string;
   background: string;
   card: string;
+  cardElevated: string;
   border: string;
+  divider: string;
   foreground: string;
   mutedForeground: string;
   muted: string;
+  inputBg: string;
   success: string;
   warning: string;
   danger: string;
   tabBar: string;
   tabBorder: string;
   headerBg: string;
+  headerGradientEnd: string;
   headerText: string;
   headerSubtext: string;
+  shadow: object;
+  shadowSm: object;
 }
+
+// Platform-aware shadow factory
+const makeShadow = (elevation: number, color: string = "#000") => Platform.select({
+  ios: {
+    shadowColor: color,
+    shadowOffset: { width: 0, height: elevation / 2 },
+    shadowOpacity: elevation * 0.018,
+    shadowRadius: elevation * 0.8,
+  },
+  android: { elevation },
+  default: {
+    shadowColor: color,
+    shadowOffset: { width: 0, height: elevation / 2 },
+    shadowOpacity: elevation * 0.015,
+    shadowRadius: elevation * 0.8,
+  },
+}) as object;
 
 export const themeColors: Record<string, ThemeColors> = {
   light: {
     primary: "#1a56a8",
-    primaryLight: "rgba(26,86,168,0.1)",
-    background: "#f9fafb",
+    primaryLight: "rgba(26,86,168,0.08)",
+    primaryHover: "#144a91",
+    background: "#f5f6f8",
     card: "#ffffff",
-    border: "#e5e7eb",
-    foreground: "#111827",
-    mutedForeground: "#6b7280",
-    muted: "#f3f4f6",
+    cardElevated: "#ffffff",
+    border: "#e8eaee",
+    divider: "#f0f1f3",
+    foreground: "#0f1729",
+    mutedForeground: "#64748b",
+    muted: "#f1f3f5",
+    inputBg: "#f8f9fb",
     success: "#22c55e",
     warning: "#f97316",
     danger: "#dc2626",
     tabBar: "#ffffff",
-    tabBorder: "#e5e7eb",
+    tabBorder: "transparent",
     headerBg: "#1a56a8",
+    headerGradientEnd: "#1e63be",
     headerText: "#ffffff",
-    headerSubtext: "rgba(255,255,255,0.9)",
+    headerSubtext: "rgba(255,255,255,0.85)",
+    shadow: makeShadow(6),
+    shadowSm: makeShadow(3),
   },
   dark: {
     primary: "#5b9bd5",
-    primaryLight: "rgba(91,155,213,0.15)",
-    background: "#111318",
-    card: "#1c1f26",
-    border: "#2e333d",
-    foreground: "#e8eaed",
-    mutedForeground: "#8b929c",
-    muted: "#22262e",
+    primaryLight: "rgba(91,155,213,0.12)",
+    primaryHover: "#4a8ac4",
+    background: "#0f1117",
+    card: "#1a1d25",
+    cardElevated: "#1e2129",
+    border: "#282d38",
+    divider: "#21252e",
+    foreground: "#eceef1",
+    mutedForeground: "#8892a0",
+    muted: "#1e222b",
+    inputBg: "#161921",
     success: "#4ade80",
     warning: "#fb923c",
     danger: "#f87171",
-    tabBar: "#1c1f26",
-    tabBorder: "#2e333d",
-    headerBg: "#1c1f26",
-    headerText: "#e8eaed",
-    headerSubtext: "rgba(232,234,237,0.7)",
+    tabBar: "#1a1d25",
+    tabBorder: "transparent",
+    headerBg: "#1a1d25",
+    headerGradientEnd: "#1e222b",
+    headerText: "#eceef1",
+    headerSubtext: "rgba(236,238,241,0.65)",
+    shadow: makeShadow(4, "#000"),
+    shadowSm: makeShadow(2, "#000"),
   },
 };
 

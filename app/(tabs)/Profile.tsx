@@ -1,42 +1,42 @@
-import React, { useState, useEffect } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StatusBar,
-  Alert,
-  TextInput,
-  ActivityIndicator,
-  Image,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  User,
-  MapPin,
-  Phone,
-  Mail,
-  Settings,
-  LogOut,
-  Moon,
-  Sun,
-  Shield,
-  Bell as BellIcon,
-  HelpCircle,
-  ChevronRight,
   ArrowLeft,
-  Lock,
+  Bell as BellIcon,
+  Camera,
+  ChevronRight,
   Eye,
   EyeOff,
+  HelpCircle,
+  Lock,
+  LogOut,
+  Mail,
+  MapPin,
+  Moon,
+  Phone,
   Save,
-  Camera,
+  Settings,
+  Shield,
+  Sun,
+  User,
 } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
-import { useAuth } from "../hooks/useAuth";
-import { useTheme, ThemeColors } from "../hooks/useTheme";
-import { useTabReset } from "../hooks/useTabReset";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../hooks/useAuth";
+import { useTabReset } from "../hooks/useTabReset";
+import { ThemeColors, useTheme } from "../hooks/useTheme";
 
 type ProfileView = "main" | "editProfile" | "accountSettings";
 
@@ -71,8 +71,9 @@ export default function Profile() {
         .eq("id", session.user.id)
         .single();
       if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-    } catch (e) {
+    } catch (error) {
       // avatar_url column may not exist yet — that's fine
+      console.log(error)
     }
   };
 
@@ -292,7 +293,7 @@ export default function Profile() {
               <TextInput
                 style={s.fieldInput}
                 value={editForm.fullName}
-                onChangeText={(t) => { setEditForm({...editForm, fullName: t}); setEditErrors({...editErrors, fullName: ""}); }}
+                onChangeText={(t) => { setEditForm({ ...editForm, fullName: t }); setEditErrors({ ...editErrors, fullName: "" }); }}
                 placeholder="Enter your full name"
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -305,7 +306,7 @@ export default function Profile() {
               <TextInput
                 style={s.fieldInput}
                 value={editForm.email}
-                onChangeText={(t) => { setEditForm({...editForm, email: t}); setEditErrors({...editErrors, email: ""}); }}
+                onChangeText={(t) => { setEditForm({ ...editForm, email: t }); setEditErrors({ ...editErrors, email: "" }); }}
                 placeholder="Enter your email"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="email-address"
@@ -320,7 +321,7 @@ export default function Profile() {
               <TextInput
                 style={s.fieldInput}
                 value={editForm.phone}
-                onChangeText={(t) => setEditForm({...editForm, phone: t})}
+                onChangeText={(t) => setEditForm({ ...editForm, phone: t })}
                 placeholder="e.g., +63 912 345 6789"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="phone-pad"
@@ -333,7 +334,7 @@ export default function Profile() {
               <TextInput
                 style={s.fieldInput}
                 value={editForm.purok}
-                onChangeText={(t) => setEditForm({...editForm, purok: t})}
+                onChangeText={(t) => setEditForm({ ...editForm, purok: t })}
                 placeholder="e.g., Purok 3"
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -345,7 +346,7 @@ export default function Profile() {
               <TextInput
                 style={s.fieldInput}
                 value={editForm.barangay}
-                onChangeText={(t) => setEditForm({...editForm, barangay: t})}
+                onChangeText={(t) => setEditForm({ ...editForm, barangay: t })}
                 placeholder="e.g., San Isidro"
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -397,7 +398,7 @@ export default function Profile() {
                   <TextInput
                     style={s.passwordInput}
                     value={passwordForm.currentPassword}
-                    onChangeText={(t) => { setPasswordForm({...passwordForm, currentPassword: t}); setPasswordErrors({...passwordErrors, currentPassword: ""}); }}
+                    onChangeText={(t) => { setPasswordForm({ ...passwordForm, currentPassword: t }); setPasswordErrors({ ...passwordErrors, currentPassword: "" }); }}
                     placeholder="Enter current password"
                     placeholderTextColor={colors.mutedForeground}
                     secureTextEntry={!showCurrentPassword}
@@ -415,7 +416,7 @@ export default function Profile() {
                   <TextInput
                     style={s.passwordInput}
                     value={passwordForm.newPassword}
-                    onChangeText={(t) => { setPasswordForm({...passwordForm, newPassword: t}); setPasswordErrors({...passwordErrors, newPassword: ""}); }}
+                    onChangeText={(t) => { setPasswordForm({ ...passwordForm, newPassword: t }); setPasswordErrors({ ...passwordErrors, newPassword: "" }); }}
                     placeholder="Enter new password (min 6 chars)"
                     placeholderTextColor={colors.mutedForeground}
                     secureTextEntry={!showNewPassword}
@@ -432,7 +433,7 @@ export default function Profile() {
                 <TextInput
                   style={s.fieldInput}
                   value={passwordForm.confirmPassword}
-                  onChangeText={(t) => { setPasswordForm({...passwordForm, confirmPassword: t}); setPasswordErrors({...passwordErrors, confirmPassword: ""}); }}
+                  onChangeText={(t) => { setPasswordForm({ ...passwordForm, confirmPassword: t }); setPasswordErrors({ ...passwordErrors, confirmPassword: "" }); }}
                   placeholder="Confirm new password"
                   placeholderTextColor={colors.mutedForeground}
                   secureTextEntry={true}
@@ -608,83 +609,83 @@ export default function Profile() {
 
 const createStyles = (c: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
-  header: { backgroundColor: c.headerBg, padding: 16, paddingBottom: 48 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  headerTitle: { color: c.headerText, fontSize: 20, fontWeight: 'bold' },
+  header: { backgroundColor: c.headerBg, padding: 20, paddingBottom: 52 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  headerTitle: { color: c.headerText, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
   headerSubtitle: { color: c.headerSubtext, fontSize: 14 },
 
   // Sub-page header (edit profile, account settings)
-  subHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: c.border },
-  subHeaderTitle: { fontSize: 18, fontWeight: 'bold', color: c.foreground },
-  backBtn: { padding: 8 },
+  subHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: c.divider },
+  subHeaderTitle: { fontSize: 18, fontWeight: '700', color: c.foreground },
+  backBtn: { padding: 8, backgroundColor: c.muted, borderRadius: 12 },
 
-  cardContainer: { paddingHorizontal: 16, marginTop: -32, marginBottom: 24 },
-  profileCard: { backgroundColor: c.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: c.border },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: 'white', fontSize: 24, fontWeight: 'bold' },
+  cardContainer: { paddingHorizontal: 16, marginTop: -34, marginBottom: 24 },
+  profileCard: { backgroundColor: c.cardElevated, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: c.border, ...(c.shadow as any) },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 22 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)' },
+  avatarText: { color: 'white', fontSize: 26, fontWeight: '800' },
   nameMeta: { flex: 1 },
-  userName: { fontSize: 18, fontWeight: 'bold', color: c.foreground },
-  userId: { fontSize: 12, color: c.mutedForeground },
-  infoList: { gap: 12 },
+  userName: { fontSize: 20, fontWeight: '800', color: c.foreground, letterSpacing: -0.3 },
+  userId: { fontSize: 12, color: c.mutedForeground, marginTop: 2, fontWeight: '500' },
+  infoList: { gap: 14 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   infoText: { fontSize: 14, color: c.foreground },
-  editButton: { width: '100%', marginTop: 20, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: c.border, alignItems: 'center' },
+  editButton: { width: '100%', marginTop: 22, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.border, alignItems: 'center', backgroundColor: c.muted },
   editButtonText: { fontSize: 14, fontWeight: '600', color: c.foreground },
 
   sectionContainer: { paddingHorizontal: 16, marginBottom: 24 },
-  sectionLabel: { fontSize: 14, fontWeight: 'bold', color: c.foreground, marginBottom: 12, paddingLeft: 4 },
+  sectionLabel: { fontWeight: '700', color: c.mutedForeground, marginBottom: 12, paddingLeft: 4, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 11 },
 
-  toggleCard: { backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  toggleCard: { backgroundColor: c.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', ...(c.shadowSm as any) },
+  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   toggleTextContent: { flex: 1 },
   itemTitle: { fontSize: 14, fontWeight: '600', color: c.foreground },
-  itemSub: { fontSize: 12, color: c.mutedForeground },
+  itemSub: { fontSize: 12, color: c.mutedForeground, marginTop: 1 },
 
-  switchTrack: { width: 48, height: 28, borderRadius: 14, padding: 4, justifyContent: 'center' },
+  switchTrack: { width: 50, height: 30, borderRadius: 15, padding: 4, justifyContent: 'center' },
   switchOn: { backgroundColor: c.primary },
   switchOff: { backgroundColor: '#d1d5db' },
-  switchThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'white' },
+  switchThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'white' },
   thumbOn: { alignSelf: 'flex-end' },
   thumbOff: { alignSelf: 'flex-start' },
 
-  settingsGroup: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border },
-  settingsItem: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+  settingsGroup: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, ...(c.shadowSm as any) },
+  settingsItem: { flexDirection: 'row', alignItems: 'center', padding: 18, gap: 14, borderBottomWidth: 1, borderBottomColor: c.divider },
   settingsTextContent: { flex: 1 },
 
   actionGap: { gap: 12 },
-  actionRowBtn: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  actionRowBtn: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14, ...(c.shadowSm as any) },
   actionBtnText: { flex: 1, fontSize: 14, fontWeight: '600', color: c.foreground },
-  logoutBtn: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: '#fecaca', padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoutBtn: { backgroundColor: '#fef2f2', borderRadius: 16, borderWidth: 1, borderColor: '#fecaca', padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
   logoutText: { flex: 1, fontSize: 14, fontWeight: '600', color: c.danger },
 
-  footer: { paddingHorizontal: 16, paddingBottom: 32, alignItems: 'center' },
+  footer: { paddingHorizontal: 16, paddingBottom: 36, paddingTop: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: c.divider, marginHorizontal: 16 },
   footerText: { fontSize: 12, color: c.mutedForeground, marginTop: 4 },
 
   // Form Styles (shared by Edit Profile & Account Settings)
-  formContainer: { padding: 16, gap: 24 },
-  editAvatarRow: { alignItems: 'center', marginBottom: 8, gap: 8 },
-  avatarImage: { width: 64, height: 64, borderRadius: 32 },
+  formContainer: { padding: 20, gap: 24 },
+  editAvatarRow: { alignItems: 'center', marginBottom: 8, gap: 10 },
+  avatarImage: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: c.primaryLight },
   avatarPickerWrap: { position: 'relative' },
-  cameraBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#1a56a8', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'white' },
-  photoHint: { fontSize: 12, color: '#6b7280' },
-  fieldGroup: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: c.foreground },
-  fieldInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 12, fontSize: 14, color: c.foreground },
+  cameraBadge: { position: 'absolute', bottom: 0, right: -2, backgroundColor: c.primary, borderRadius: 14, width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: c.background },
+  photoHint: { fontSize: 12, color: c.mutedForeground, fontWeight: '500' },
+  fieldGroup: { gap: 8 },
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: c.foreground },
+  fieldInput: { backgroundColor: c.inputBg, borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 14, fontSize: 14, color: c.foreground },
   errorText: { color: c.danger, fontSize: 12 },
-  saveBtn: { backgroundColor: c.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 8 },
-  saveBtnText: { color: 'white', fontWeight: '600', fontSize: 15 },
+  saveBtn: { backgroundColor: c.primary, paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 8, ...(c.shadow as any) },
+  saveBtnText: { color: 'white', fontWeight: '700', fontSize: 15 },
 
   // Password fields
-  passwordRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10 },
-  passwordInput: { flex: 1, padding: 12, fontSize: 14, color: c.foreground },
-  eyeBtn: { padding: 12 },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.inputBg, borderWidth: 1, borderColor: c.border, borderRadius: 12 },
+  passwordInput: { flex: 1, padding: 14, fontSize: 14, color: c.foreground },
+  eyeBtn: { padding: 14 },
 
   // Account Settings sections
-  settingsSection: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 20, gap: 16 },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  settingsSectionTitle: { fontSize: 16, fontWeight: 'bold', color: c.foreground },
+  settingsSection: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 22, gap: 18, ...(c.shadow as any) },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  settingsSectionTitle: { fontSize: 16, fontWeight: '700', color: c.foreground },
 
-  dangerBtn: { borderWidth: 1, borderColor: c.danger, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-  dangerBtnText: { color: c.danger, fontWeight: '600', fontSize: 14 },
+  dangerBtn: { borderWidth: 1, borderColor: c.danger, borderRadius: 12, paddingVertical: 14, alignItems: 'center', backgroundColor: '#fef2f2' },
+  dangerBtnText: { color: c.danger, fontWeight: '700', fontSize: 14 },
 });

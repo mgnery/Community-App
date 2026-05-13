@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
       {/* Logo and branding section */}
       <View style={styles.brandSection}>
         <View style={styles.logoContainer}>
-          <Building2 size={48} color={COLORS.white} />
+          <Building2 size={56} color={COLORS.white} />
         </View>
         <Text style={styles.appTitle}>Barangay Portal</Text>
         <Text style={styles.appSubtitle}>Connect with your community</Text>
@@ -69,29 +69,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
   },
   topSpacer: {
     flex: 2,
   },
   brandSection: {
     alignItems: "center",
-    gap: 12,
+    gap: 14,
   },
   logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 18,
+    width: 96,
+    height: 96,
+    borderRadius: 24,
     backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 12,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
   },
   appTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 30,
+    fontWeight: "800",
     color: COLORS.textDark,
     textAlign: "center",
+    letterSpacing: -0.5,
   },
   appSubtitle: {
     fontSize: 16,
@@ -100,34 +106,41 @@ const styles = StyleSheet.create({
   },
   buttonSection: {
     gap: 14,
-    marginTop: 60,
-    paddingHorizontal: 8,
+    marginTop: 64,
+    paddingHorizontal: 4,
   },
   signInButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 14,
-    paddingVertical: 16,
+    paddingVertical: 17,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   signInButtonText: {
     color: COLORS.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   createAccountButton: {
     backgroundColor: COLORS.white,
     borderRadius: 14,
-    paddingVertical: 16,
+    paddingVertical: 17,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
   },
   createAccountButtonText: {
     color: COLORS.textDark,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   bottomSpacer: {
     flex: 3,
