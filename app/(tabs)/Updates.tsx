@@ -1,73 +1,69 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
   Text,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Bell, Calendar, Clock, Tag } from "lucide-react-native";
 import { useTheme, ThemeColors } from "../hooks/useTheme";
-
-const announcements = [
-  {
-    id: 1,
-    title: "Community Clean-up Drive",
-    category: "Event",
-    description: "Join us this Saturday for our monthly community clean-up drive. Let's keep our barangay clean and beautiful!",
-    date: "April 12, 2026",
-    time: "7:00 AM",
-    author: "Barangay Captain",
-    priority: "high",
-  },
-  {
-    id: 2,
-    title: "Ayuda Distribution Schedule",
-    category: "Announcement",
-    description: "Financial assistance will be distributed to qualified residents. Please check the Ayuda tab for eligibility and schedule.",
-    date: "April 10, 2026",
-    time: "2:30 PM",
-    author: "Social Services Officer",
-    priority: "high",
-  },
-  {
-    id: 3,
-    title: "Road Repair Notice",
-    category: "Notice",
-    description: "Main Street will undergo repair work from April 8-15. Expect traffic delays and find alternative routes.",
-    date: "April 7, 2026",
-    time: "9:00 AM",
-    author: "Infrastructure Committee",
-    priority: "medium",
-  },
-  {
-    id: 4,
-    title: "Health & Wellness Program",
-    category: "Event",
-    description: "Free health check-up and consultation this Friday at the barangay hall. Bring your health cards.",
-    date: "April 6, 2026",
-    time: "1:15 PM",
-    author: "Health Officer",
-    priority: "medium",
-  },
-  {
-    id: 5,
-    title: "Barangay Assembly Meeting",
-    category: "Notice",
-    description: "Monthly barangay assembly meeting. All residents are encouraged to attend and participate in community discussions.",
-    date: "April 5, 2026",
-    time: "6:00 PM",
-    author: "Barangay Secretary",
-    priority: "low",
-  },
-];
+import { supabase } from "../../lib/supabase";
 
 const categories = ["All", "Event", "Announcement", "Notice"];
 
 export default function Updates() {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { colors } = useTheme();
+
+  useEffect(() => {
+    fetchUpdates();
+  }, []);
+
+  const fetchUpdates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("updates")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching updates:", error);
+      } else if (data) {
+        const formatted = data.map((u: any) => ({
+          id: u.id,
+          title: u.title,
+          category: u.category,
+          description: u.description,
+          date: u.event_date
+            ? new Date(u.event_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+            : "TBA",
+          time: u.event_time
+            ? u.event_time.slice(0, 5) // "HH:MM" from "HH:MM:SS"
+            : "—",
+          author: u.author,
+          priority: u.priority,
+        }));
+        setAnnouncements(formatted);
+      }
+    } catch (e) {
+      console.error("Fetch updates exception:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchUpdates();
+    setRefreshing(false);
+  }, []);
 
   const filteredAnnouncements =
     selectedCategory === "All"
@@ -115,46 +111,62 @@ export default function Updates() {
       </View>
 
       {/* Announcements List */}
-      <ScrollView contentContainerStyle={s.listContent}>
-        {filteredAnnouncements.map((announcement) => (
-          <View key={announcement.id} style={s.card}>
-            {/* Priority Indicator */}
-            <View style={[
-              s.priorityIndicator,
-              announcement.priority === "high" ? s.bgRed :
-              announcement.priority === "medium" ? s.bgOrange : s.bgGreen
-            ]} />
-            
-            <View style={s.cardPadding}>
-              <View style={s.cardHeader}>
-                <Text style={s.cardTitle}>{announcement.title}</Text>
-                <View style={s.tagBadge}>
-                  <Tag size={10} color={colors.primary} />
-                  <Text style={s.tagText}>{announcement.category}</Text>
+      <ScrollView
+        contentContainerStyle={s.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : filteredAnnouncements.length === 0 ? (
+          <Text style={{ textAlign: "center", color: colors.mutedForeground, marginTop: 20 }}>No updates available.</Text>
+        ) : (
+          filteredAnnouncements.map((announcement) => (
+            <View key={announcement.id} style={s.card}>
+              {/* Priority Indicator */}
+              <View style={[
+                s.priorityIndicator,
+                announcement.priority === "high" ? s.bgRed :
+                announcement.priority === "medium" ? s.bgOrange : s.bgGreen
+              ]} />
+              
+              <View style={s.cardPadding}>
+                <View style={s.cardHeader}>
+                  <Text style={s.cardTitle}>{announcement.title}</Text>
+                  <View style={s.tagBadge}>
+                    <Tag size={10} color={colors.primary} />
+                    <Text style={s.tagText}>{announcement.category}</Text>
+                  </View>
                 </View>
-              </View>
 
-              <Text style={s.description}>{announcement.description}</Text>
+                <Text style={s.description}>{announcement.description}</Text>
 
-              <View style={s.metaRow}>
-                <View style={s.metaItem}>
-                  <Calendar size={12} color={colors.mutedForeground} />
-                  <Text style={s.metaText}>{announcement.date}</Text>
+                <View style={s.metaRow}>
+                  <View style={s.metaItem}>
+                    <Calendar size={12} color={colors.mutedForeground} />
+                    <Text style={s.metaText}>{announcement.date}</Text>
+                  </View>
+                  <View style={s.metaItem}>
+                    <Clock size={12} color={colors.mutedForeground} />
+                    <Text style={s.metaText}>{announcement.time}</Text>
+                  </View>
                 </View>
-                <View style={s.metaItem}>
-                  <Clock size={12} color={colors.mutedForeground} />
-                  <Text style={s.metaText}>{announcement.time}</Text>
-                </View>
-              </View>
 
-              <View style={s.authorSection}>
-                <Text style={s.authorText}>
-                  Posted by: {announcement.author}
-                </Text>
+                <View style={s.authorSection}>
+                  <Text style={s.authorText}>
+                    Posted by: {announcement.author}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-        ))}
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );

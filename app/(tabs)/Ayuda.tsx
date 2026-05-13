@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemeColors, useTheme } from "../hooks/useTheme";
+import { useTabReset } from "../hooks/useTabReset";
 import { supabase } from "../../lib/supabase";
 
 export default function Ayuda() {
@@ -35,6 +36,12 @@ export default function Ayuda() {
 
   const [formErrors, setFormErrors] = useState<{ accountName?: string; accountNumber?: string; bankName?: string }>({});
   const { colors } = useTheme();
+  const { subscribe } = useTabReset();
+
+  // Reset to programs view when tab icon is pressed
+  useEffect(() => {
+    return subscribe("Ayuda", () => setView("programs"));
+  }, [subscribe]);
 
   useEffect(() => {
     fetchData();
@@ -130,7 +137,9 @@ export default function Ayuda() {
         user_id: session.user.id,
         status: "pending",
         method: distributionMethod,
-        bank_details: distributionMethod === "digital" ? bankDetails : null,
+        account_name: distributionMethod === "digital" ? bankDetails.accountName : null,
+        account_number: distributionMethod === "digital" ? bankDetails.accountNumber : null,
+        bank_name: distributionMethod === "digital" ? bankDetails.bankName : null,
       };
 
       const { error } = await supabase.from("ayuda_applications").insert(insertData);

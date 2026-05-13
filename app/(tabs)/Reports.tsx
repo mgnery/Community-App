@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -24,36 +26,8 @@ import {
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme, ThemeColors } from "../hooks/useTheme";
-
-const initialReports = [
-  {
-    id: 1,
-    type: "Streetlight",
-    description: "Broken streetlight in Purok 3 near the basketball court",
-    location: "Purok 3, Basketball Court",
-    status: "completed",
-    date: "March 30, 2026",
-    response: "Streetlight has been repaired. Thank you for reporting!",
-  },
-  {
-    id: 2,
-    type: "Drainage",
-    description: "Clogged drainage causing flooding during rain",
-    location: "Purok 1, Main Street",
-    status: "in-progress",
-    date: "April 5, 2026",
-    response: "Our team is working on clearing the drainage.",
-  },
-  {
-    id: 3,
-    type: "Road",
-    description: "Large pothole on the road, dangerous for vehicles",
-    location: "Purok 2, Corner Street",
-    status: "pending",
-    date: "April 6, 2026",
-    response: null,
-  },
-];
+import { useTabReset } from "../hooks/useTabReset";
+import { supabase } from "../../lib/supabase";
 
 const issueTypes = ["Streetlight", "Drainage", "Road", "Garbage", "Water", "Noise", "Security", "Other"];
 
@@ -62,30 +36,74 @@ export default function Reports() {
   const [selectedType, setSelectedType] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [reports, setReports] = useState(initialReports);
+  const [reports, setReports] = useState<any[]>([]);
   const [formErrors, setFormErrors] = useState<{ type?: string; description?: string; location?: string }>({});
-  // ADDED: Photo upload state — stores the selected image URI
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { colors } = useTheme();
+  const { subscribe } = useTabReset();
 
-  // ============================================================
-  // PHOTO UPLOAD — Uses expo-image-picker to open the device
-  // gallery. The selected image URI is stored locally and can be
-  // uploaded to a server when the database is connected:
-  // Example: const formData = new FormData();
-  //          formData.append('photo', { uri, name, type });
-  //          await fetch('/api/reports/upload', { method: 'POST', body: formData });
-  // ============================================================
+  // Reset to list view when tab icon is pressed
+  useEffect(() => {
+    return subscribe("Reports", () => setView("list"));
+  }, [subscribe]);
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const fetchReports = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("reports")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching reports:", error);
+      } else if (data) {
+        const formatted = data.map((r: any) => ({
+          id: r.id,
+          type: r.issue_type,
+          description: r.description,
+          location: r.location,
+          status: r.status,
+          date: new Date(r.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+          response: r.response,
+          photoUrl: r.photo_url,
+        }));
+        setReports(formatted);
+      }
+    } catch (e) {
+      console.error("Fetch reports exception:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchReports();
+    setRefreshing(false);
+  }, []);
+
   const handlePhotoUpload = async () => {
     try {
-      // Request permission
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
         Alert.alert("Permission Required", "Please allow access to your photo library to upload evidence.");
         return;
       }
 
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
@@ -102,12 +120,39 @@ export default function Reports() {
     }
   };
 
-  // ADDED: Remove selected photo
   const removePhoto = () => {
     setPhotoUri(null);
   };
 
-  const handleSubmit = () => {
+  const uploadPhoto = async (userId: string): Promise<string | null> => {
+    if (!photoUri) return null;
+
+    try {
+      const fileName = `${userId}/${Date.now()}.jpg`;
+      const response = await fetch(photoUri);
+      const blob = await response.blob();
+
+      const { data, error } = await supabase.storage
+        .from("report-photos")
+        .upload(fileName, blob, { contentType: "image/jpeg" });
+
+      if (error) {
+        console.warn("Photo upload failed (bucket may not exist):", error.message);
+        return null;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("report-photos")
+        .getPublicUrl(data.path);
+
+      return urlData.publicUrl;
+    } catch (e) {
+      console.warn("Photo upload exception:", e);
+      return null;
+    }
+  };
+
+  const handleSubmit = async () => {
     const errors: { type?: string; description?: string; location?: string } = {};
     if (!selectedType) errors.type = "Please select an issue type.";
     if (!description.trim()) errors.description = "Please describe the issue.";
@@ -118,24 +163,43 @@ export default function Reports() {
       return;
     }
 
-    const newReport = {
-      id: reports.length + 1,
-      type: selectedType,
-      description: description.trim(),
-      location: location.trim(),
-      status: "pending",
-      date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-      response: null,
-    };
+    try {
+      setIsSubmitting(true);
 
-    setReports([newReport, ...reports]);
-    Alert.alert("Success", "Report submitted successfully!");
-    setView("list");
-    setSelectedType("");
-    setDescription("");
-    setLocation("");
-    setPhotoUri(null);
-    setFormErrors({});
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("You must be logged in to submit a report.");
+
+      // Upload photo if selected
+      const photoUrl = await uploadPhoto(session.user.id);
+
+      const insertData = {
+        user_id: session.user.id,
+        issue_type: selectedType,
+        description: description.trim(),
+        location: location.trim(),
+        status: "pending",
+        photo_url: photoUrl,
+      };
+
+      const { error } = await supabase.from("reports").insert(insertData);
+      if (error) throw error;
+
+      Alert.alert("Success", "Report submitted successfully!");
+      setView("list");
+      setSelectedType("");
+      setDescription("");
+      setLocation("");
+      setPhotoUri(null);
+      setFormErrors({});
+
+      // Refresh reports list
+      await fetchReports();
+    } catch (e: any) {
+      console.error("Submit report error:", e);
+      Alert.alert("Error", e.message || "Failed to submit report.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -182,34 +246,57 @@ export default function Reports() {
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={s.scrollContent}>
+      <ScrollView
+        contentContainerStyle={s.scrollContent}
+        refreshControl={
+          view === "list" ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          ) : undefined
+        }
+      >
         {view === "list" ? (
-          <View style={s.listContainer}>
-            {reports.map((report) => (
-              <View key={report.id} style={s.reportCard}>
-                <View style={s.cardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <View style={s.cardTitleRow}>
-                      <Text style={s.cardTitle}>{report.type} Issue</Text>
-                      <StatusBadge status={report.status} />
+          isLoading ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          ) : (
+            <View style={s.listContainer}>
+              {reports.length === 0 ? (
+                <Text style={{ textAlign: "center", color: colors.mutedForeground, marginTop: 20 }}>No reports yet. Tap "New Report" to create one.</Text>
+              ) : (
+                reports.map((report) => (
+                  <View key={report.id} style={s.reportCard}>
+                    <View style={s.cardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <View style={s.cardTitleRow}>
+                          <Text style={s.cardTitle}>{report.type} Issue</Text>
+                          <StatusBadge status={report.status} />
+                        </View>
+                        <Text style={s.cardDesc}>{report.description}</Text>
+                        <View style={s.locationRow}>
+                          <MapPin size={12} color={colors.mutedForeground} />
+                          <Text style={s.locationText}>{report.location}</Text>
+                        </View>
+                      </View>
                     </View>
-                    <Text style={s.cardDesc}>{report.description}</Text>
-                    <View style={s.locationRow}>
-                      <MapPin size={12} color={colors.mutedForeground} />
-                      <Text style={s.locationText}>{report.location}</Text>
-                    </View>
+                    {report.photoUrl && (
+                      <Image source={{ uri: report.photoUrl }} style={s.reportPhoto} resizeMode="cover" />
+                    )}
+                    {report.response && (
+                      <View style={s.responseContainer}>
+                        <Text style={s.responseTextLabel}>Official Response:</Text>
+                        <Text style={s.responseText}>{report.response}</Text>
+                      </View>
+                    )}
+                    <Text style={s.dateText}>Reported on {report.date}</Text>
                   </View>
-                </View>
-                {report.response && (
-                  <View style={s.responseContainer}>
-                    <Text style={s.responseTextLabel}>Official Response:</Text>
-                    <Text style={s.responseText}>{report.response}</Text>
-                  </View>
-                )}
-                <Text style={s.dateText}>Reported on {report.date}</Text>
-              </View>
-            ))}
-          </View>
+                ))
+              )}
+            </View>
+          )
         ) : (
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.form}>
             <View style={s.inputGroup}>
@@ -260,7 +347,6 @@ export default function Reports() {
             <View style={s.inputGroup}>
               <Text style={s.label}>Photo Evidence (Optional)</Text>
               {photoUri ? (
-                // ADDED: Show selected photo preview with remove button
                 <View style={s.photoPreviewContainer}>
                   <Image source={{ uri: photoUri }} style={s.photoPreview} resizeMode="cover" />
                   <TouchableOpacity style={s.removePhotoBtn} onPress={removePhoto}>
@@ -268,7 +354,6 @@ export default function Reports() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                // ADDED: Tap to upload opens the real image picker
                 <TouchableOpacity style={s.photoUpload} onPress={handlePhotoUpload}>
                   <Camera size={32} color={colors.mutedForeground} />
                   <Text style={s.photoUploadText}>Tap to upload photo</Text>
@@ -277,12 +362,18 @@ export default function Reports() {
             </View>
 
             <View style={s.formActions}>
-              <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
+              <TouchableOpacity style={s.cancelBtn} onPress={handleCancel} disabled={isSubmitting}>
                 <Text style={s.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.submitBtn} onPress={handleSubmit}>
-                <Send size={18} color="white" />
-                <Text style={s.submitBtnText}>Submit Report</Text>
+              <TouchableOpacity style={s.submitBtn} onPress={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <>
+                    <Send size={18} color="white" />
+                    <Text style={s.submitBtnText}>Submit Report</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -313,6 +404,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   responseContainer: { backgroundColor: c.muted, marginHorizontal: -16, padding: 16, marginTop: 12, borderTopWidth: 1, borderTopColor: c.border },
   responseTextLabel: { fontSize: 12, fontWeight: 'bold', color: c.foreground, marginBottom: 4 },
   responseText: { fontSize: 12, color: c.mutedForeground },
+  reportPhoto: { width: '100%', height: 180, borderRadius: 8, marginTop: 12 },
   dateText: { fontSize: 10, color: c.mutedForeground, marginTop: 12 },
   form: { gap: 16 },
   inputGroup: { gap: 8 },
@@ -329,7 +421,6 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   input: { flex: 1, padding: 12, fontSize: 14, color: c.foreground },
   photoUpload: { width: '100%', padding: 24, borderRadius: 8, borderStyle: 'dashed', borderWidth: 2, borderColor: c.border, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' },
   photoUploadText: { fontSize: 14, color: c.mutedForeground, marginTop: 8 },
-  // ADDED: Photo preview styles
   photoPreviewContainer: { position: 'relative', borderRadius: 8, overflow: 'hidden' },
   photoPreview: { width: '100%', height: 200, borderRadius: 8 },
   removePhotoBtn: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 16, padding: 6 },

@@ -2,6 +2,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ThemeProvider } from "./hooks/useTheme";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { TabResetProvider } from "./hooks/useTabReset";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 
 // ============================================================
@@ -39,7 +40,7 @@ function RootNavigator() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 200 }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
     </Stack>
@@ -50,7 +51,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <RootNavigator />
+        <TabResetProvider>
+          <RootNavigator />
+        </TabResetProvider>
       </ThemeProvider>
     </AuthProvider>
   );

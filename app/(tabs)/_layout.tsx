@@ -2,10 +2,12 @@ import { Tabs } from "expo-router";
 import { Home, Bell, FileText, Gift, User } from "lucide-react-native";
 import { Platform } from "react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useTabReset } from "../hooks/useTabReset";
 
 export default function TabLayout() {
   // Read colors from theme context so tab bar updates with dark mode
   const { colors } = useTheme();
+  const { emit } = useTabReset();
 
   return (
     <Tabs
@@ -25,6 +27,7 @@ export default function TabLayout() {
           fontWeight: '500',
         },
         headerShown: false,
+        animation: 'shift',
       }}
     >
       <Tabs.Screen
@@ -47,6 +50,9 @@ export default function TabLayout() {
           title: "Reports",
           tabBarIcon: ({ color }) => <FileText size={24} color={color} />,
         }}
+        listeners={{
+          tabPress: () => emit("Reports"),
+        }}
       />
       <Tabs.Screen
         name="Ayuda"
@@ -54,12 +60,18 @@ export default function TabLayout() {
           title: "Ayuda",
           tabBarIcon: ({ color }) => <Gift size={24} color={color} />,
         }}
+        listeners={{
+          tabPress: () => emit("Ayuda"),
+        }}
       />
       <Tabs.Screen
         name="Profile"
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => <User size={24} color={color} />,
+        }}
+        listeners={{
+          tabPress: () => emit("Profile"),
         }}
       />
     </Tabs>

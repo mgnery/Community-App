@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,38 +20,12 @@ import {
 } from "lucide-react-native";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme, ThemeColors } from "../hooks/useTheme";
-
-const stats = [
-  { label: "Active Reports", value: "12", icon: FileText, color: null as string | null },
-  { label: "Residents", value: "2,431", icon: Users, color: "#22c55e" },
-  { label: "Ayuda Given", value: "156", icon: Heart, color: "#fb923c" },
-];
+import { supabase } from "../../lib/supabase";
 
 const quickActions = [
   { label: "Report Issue", icon: FileText, path: "Reports", color: null as string | null },
   { label: "View Updates", icon: Bell, path: "Updates", color: "#22c55e" },
   { label: "Ayuda Status", icon: Heart, path: "Ayuda", color: "#f97316" },
-];
-
-const recentActivities = [
-  {
-    title: "New Streetlight Installed",
-    description: "Purok 3, reported last week",
-    time: "2 hours ago",
-    status: "completed",
-  },
-  {
-    title: "Road Repair Scheduled",
-    description: "Main Street, Purok 1",
-    time: "5 hours ago",
-    status: "in-progress",
-  },
-  {
-    title: "Ayuda Distribution",
-    description: "Financial assistance available",
-    time: "1 day ago",
-    status: "announcement",
-  },
 ];
 
 export default function Home() {
@@ -59,20 +34,109 @@ export default function Home() {
   const { colors } = useTheme();
   const firstName = user?.fullName?.split(" ")[0] || "Resident";
 
-  // ADDED: Pull-to-refresh functionality
-  // ============================================================
-  // When connected to a database, replace the mock refresh with
-  // actual API calls to reload dashboard data:
-  // Example: const data = await fetch('/api/dashboard').then(r => r.json())
-  // ============================================================
   const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    // Simulate fetching fresh data from the server
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1500);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Live stats
+  const [activeReports, setActiveReports] = useState(0);
+  const [ayudaApproved, setAyudaApproved] = useState(0);
+  const [totalUpdates, setTotalUpdates] = useState(0);
+
+  // Recent activity from updates table
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchDashboardData();
   }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsLoading(false);
+        return;
+      }
+
+      const userId = session.user.id;
+
+      // Fetch all stats in parallel
+      const [reportsRes, ayudaRes, updatesCountRes, recentUpdatesRes] = await Promise.all([
+        // Active reports for this user (not completed)
+        supabase
+          .from("reports")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .neq("status", "completed"),
+
+        // Approved ayuda applications for this user
+        supabase
+          .from("ayuda_applications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("status", "approved"),
+
+        // Total updates count
+        supabase
+          .from("updates")
+          .select("id", { count: "exact", head: true }),
+
+        // Recent updates (latest 5)
+        supabase
+          .from("updates")
+          .select("id, title, description, category, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
+
+      setActiveReports(reportsRes.count ?? 0);
+      setAyudaApproved(ayudaRes.count ?? 0);
+      setTotalUpdates(updatesCountRes.count ?? 0);
+
+      if (recentUpdatesRes.data) {
+        const formatted = recentUpdatesRes.data.map((u: any) => ({
+          id: u.id,
+          title: u.title,
+          description: u.description,
+          time: getRelativeTime(u.created_at),
+          status: u.category?.toLowerCase() === "event" ? "event"
+            : u.category?.toLowerCase() === "notice" ? "notice"
+            : "announcement",
+        }));
+        setRecentActivities(formatted);
+      }
+    } catch (e) {
+      console.error("Dashboard fetch error:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getRelativeTime = (dateStr: string): string => {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
+  }, []);
+
+  const stats = [
+    { label: "Active Reports", value: String(activeReports), icon: FileText, color: null as string | null },
+    { label: "Updates", value: String(totalUpdates), icon: Bell, color: "#22c55e" },
+    { label: "Ayuda Approved", value: String(ayudaApproved), icon: Heart, color: "#fb923c" },
+  ];
 
   const s = createStyles(colors);
 
@@ -80,7 +144,6 @@ export default function Home() {
     <SafeAreaView style={s.container}>
       <ScrollView
         contentContainerStyle={s.scrollContent}
-        // ADDED: RefreshControl for pull-to-refresh
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -101,71 +164,81 @@ export default function Home() {
           <Text style={s.subtitle}>Stay connected with your community</Text>
         </View>
 
-        {/* Stats Cards */}
-        <View style={s.gridThree}>
-          {stats.map((stat) => (
-            <View key={stat.label} style={s.statCard}>
-              <stat.icon size={18} color={stat.color ?? colors.primary} />
-              <Text style={s.statValue}>{stat.value}</Text>
-              <Text style={s.statLabel} numberOfLines={2}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Quick Actions */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Quick Actions</Text>
-          <View style={s.gridThree}>
-            {quickActions.map((action) => {
-              const actionColor = action.color ?? colors.primary;
-              return (
-                <TouchableOpacity
-                  key={action.label}
-                  style={s.actionCard}
-                  onPress={() => router.push(`/${action.path}` as any)}
-                >
-                  <View style={[s.iconCircle, { backgroundColor: actionColor }]}>
-                    <action.icon size={20} color="white" />
-                  </View>
-                  <Text style={s.actionLabel}>{action.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Recent Activity */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>Recent Activity</Text>
-            <TrendingUp size={16} color={colors.primary} />
-          </View>
-          
-          <View style={s.activityList}>
-            {recentActivities.map((activity, index) => (
-              <View key={index} style={s.activityCard}>
-                <View style={s.activityHeader}>
-                  <Text style={s.activityTitle}>{activity.title}</Text>
-                  <View style={[
-                    s.statusBadge,
-                    activity.status === "completed" ? s.bgGreen : 
-                    activity.status === "in-progress" ? s.bgOrange : s.bgBlue
-                  ]}>
-                    <Text style={[
-                      s.statusText,
-                      activity.status === "completed" ? s.textGreen : 
-                      activity.status === "in-progress" ? s.textOrange : s.textBlue
-                    ]}>
-                      {activity.status}
-                    </Text>
-                  </View>
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            {/* Stats Cards */}
+            <View style={s.gridThree}>
+              {stats.map((stat) => (
+                <View key={stat.label} style={s.statCard}>
+                  <stat.icon size={18} color={stat.color ?? colors.primary} />
+                  <Text style={s.statValue}>{stat.value}</Text>
+                  <Text style={s.statLabel} numberOfLines={2}>{stat.label}</Text>
                 </View>
-                <Text style={s.activityDesc}>{activity.description}</Text>
-                <Text style={s.activityTime}>{activity.time}</Text>
+              ))}
+            </View>
+
+            {/* Quick Actions */}
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>Quick Actions</Text>
+              <View style={s.gridThree}>
+                {quickActions.map((action) => {
+                  const actionColor = action.color ?? colors.primary;
+                  return (
+                    <TouchableOpacity
+                      key={action.label}
+                      style={s.actionCard}
+                      onPress={() => router.push(`/${action.path}` as any)}
+                    >
+                      <View style={[s.iconCircle, { backgroundColor: actionColor }]}>
+                        <action.icon size={20} color="white" />
+                      </View>
+                      <Text style={s.actionLabel}>{action.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            ))}
-          </View>
-        </View>
+            </View>
+
+            {/* Recent Activity */}
+            <View style={s.section}>
+              <View style={s.sectionHeader}>
+                <Text style={s.sectionTitle}>Recent Updates</Text>
+                <TrendingUp size={16} color={colors.primary} />
+              </View>
+              
+              <View style={s.activityList}>
+                {recentActivities.length === 0 ? (
+                  <Text style={{ textAlign: "center", color: colors.mutedForeground, marginTop: 8 }}>No recent updates.</Text>
+                ) : (
+                  recentActivities.map((activity) => (
+                    <View key={activity.id} style={s.activityCard}>
+                      <View style={s.activityHeader}>
+                        <Text style={s.activityTitle}>{activity.title}</Text>
+                        <View style={[
+                          s.statusBadge,
+                          activity.status === "event" ? s.bgGreen : 
+                          activity.status === "notice" ? s.bgOrange : s.bgBlue
+                        ]}>
+                          <Text style={[
+                            s.statusText,
+                            activity.status === "event" ? s.textGreen : 
+                            activity.status === "notice" ? s.textOrange : s.textBlue
+                          ]}>
+                            {activity.status}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={s.activityDesc} numberOfLines={2}>{activity.description}</Text>
+                      <Text style={s.activityTime}>{activity.time}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            </View>
+          </>
+        )}
 
       </ScrollView>
     </SafeAreaView>

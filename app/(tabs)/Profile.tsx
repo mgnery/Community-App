@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -29,17 +30,107 @@ import {
   Eye,
   EyeOff,
   Save,
+  Camera,
 } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme, ThemeColors } from "../hooks/useTheme";
+import { useTabReset } from "../hooks/useTabReset";
+import { supabase } from "../../lib/supabase";
 
 type ProfileView = "main" | "editProfile" | "accountSettings";
 
 export default function Profile() {
   const { user, signOut, updateProfile, changePassword } = useAuth();
   const { theme, toggleTheme, colors } = useTheme();
+  const { subscribe } = useTabReset();
   const isDarkMode = theme === "dark";
   const [currentView, setCurrentView] = useState<ProfileView>("main");
+
+  // Profile photo state
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
+
+  // Reset to main view when tab icon is pressed
+  useEffect(() => {
+    return subscribe("Profile", () => setCurrentView("main"));
+  }, [subscribe]);
+
+  // Load avatar on mount
+  useEffect(() => {
+    loadAvatar();
+  }, []);
+
+  const loadAvatar = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", session.user.id)
+        .single();
+      if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+    } catch (e) {
+      // avatar_url column may not exist yet — that's fine
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Permission Required", "Please allow access to your photo library.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        await uploadAvatar(result.assets[0].uri);
+      }
+    } catch (e) {
+      console.error("Photo picker error:", e);
+    }
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    try {
+      setPhotoLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const fileName = `${session.user.id}/avatar.jpg`;
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      const { error: uploadErr } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, blob, { contentType: "image/jpeg", upsert: true });
+
+      if (uploadErr) {
+        console.warn("Avatar upload failed (bucket may not exist):", uploadErr.message);
+        // Still show local preview even if upload fails
+        setAvatarUrl(uri);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(fileName);
+      const publicUrl = urlData.publicUrl + "?t=" + Date.now();
+      setAvatarUrl(publicUrl);
+
+      // Save URL to profile
+      await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", session.user.id);
+    } catch (e) {
+      console.warn("Avatar upload exception:", e);
+      setAvatarUrl(uri); // local fallback
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
 
   // --- Edit Profile State ---
   const [editForm, setEditForm] = useState({
@@ -180,9 +271,19 @@ export default function Profile() {
           </View>
 
           <View style={s.formContainer}>
-            {/* Avatar */}
+            {/* Avatar with photo picker */}
             <View style={s.editAvatarRow}>
-              <View style={s.avatar}><Text style={s.avatarText}>{initials}</Text></View>
+              <TouchableOpacity onPress={handlePickPhoto} style={s.avatarPickerWrap} disabled={photoLoading}>
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={s.avatarImage} />
+                ) : (
+                  <View style={s.avatar}><Text style={s.avatarText}>{initials}</Text></View>
+                )}
+                <View style={s.cameraBadge}>
+                  {photoLoading ? <ActivityIndicator size={12} color="white" /> : <Camera size={14} color="white" />}
+                </View>
+              </TouchableOpacity>
+              <Text style={s.photoHint}>Tap to change photo</Text>
             </View>
 
             {/* Full Name */}
@@ -405,7 +506,11 @@ export default function Profile() {
         <View style={s.cardContainer}>
           <View style={s.profileCard}>
             <View style={s.avatarRow}>
-              <View style={s.avatar}><Text style={s.avatarText}>{initials}</Text></View>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={s.avatarImage} />
+              ) : (
+                <View style={s.avatar}><Text style={s.avatarText}>{initials}</Text></View>
+              )}
               <View style={s.nameMeta}>
                 <Text style={s.userName}>{displayName}</Text>
                 <Text style={s.userId}>ID: {user?.residentId || "—"}</Text>
@@ -531,7 +636,7 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: 'bold', color: c.foreground, marginBottom: 12, paddingLeft: 4 },
 
   toggleCard: { backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   toggleTextContent: { flex: 1 },
   itemTitle: { fontSize: 14, fontWeight: '600', color: c.foreground },
   itemSub: { fontSize: 12, color: c.mutedForeground },
@@ -558,7 +663,11 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
 
   // Form Styles (shared by Edit Profile & Account Settings)
   formContainer: { padding: 16, gap: 24 },
-  editAvatarRow: { alignItems: 'center', marginBottom: 8 },
+  editAvatarRow: { alignItems: 'center', marginBottom: 8, gap: 8 },
+  avatarImage: { width: 64, height: 64, borderRadius: 32 },
+  avatarPickerWrap: { position: 'relative' },
+  cameraBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#1a56a8', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'white' },
+  photoHint: { fontSize: 12, color: '#6b7280' },
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: c.foreground },
   fieldInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 12, fontSize: 14, color: c.foreground },
