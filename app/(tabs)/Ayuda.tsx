@@ -7,8 +7,9 @@ import {
   Info,
   MapPin,
 } from "lucide-react-native";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -16,23 +17,23 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ThemeColors, useTheme } from "../hooks/useTheme";
-import { useTabReset } from "../hooks/useTabReset";
 import { supabase } from "../../lib/supabase";
+import { useTabReset } from "../hooks/useTabReset";
+import { ThemeColors, useTheme } from "../hooks/useTheme";
 
 export default function Ayuda() {
   const [view, setView] = useState<"programs" | "applications" | "apply">("programs");
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
   const [distributionMethod, setDistributionMethod] = useState<"digital" | "physical">("digital");
   const [bankDetails, setBankDetails] = useState({ accountName: "", accountNumber: "", bankName: "" });
-  
+
   const [programs, setPrograms] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasVerified, setHasVerified] = useState(false);
 
   const [formErrors, setFormErrors] = useState<{ accountName?: string; accountNumber?: string; bankName?: string }>({});
   const { colors } = useTheme();
@@ -59,7 +60,7 @@ export default function Ayuda() {
         .from("ayuda_programs")
         .select("*")
         .order("id", { ascending: true });
-        
+
       if (error) {
         console.error("Error fetching programs:", error);
       } else if (data) {
@@ -116,6 +117,7 @@ export default function Ayuda() {
     setDistributionMethod("digital");
     setBankDetails({ accountName: "", accountNumber: "", bankName: "" });
     setFormErrors({});
+    setHasVerified(false);
   };
 
   const handleApply = async () => {
@@ -143,16 +145,16 @@ export default function Ayuda() {
       };
 
       const { error } = await supabase.from("ayuda_applications").insert(insertData);
-      
+
       if (error) throw error;
 
       Alert.alert("Success", "Application submitted successfully!");
       resetForm();
       setView("applications");
-      
+
       // Refresh applications list
       await fetchApplications();
-      
+
     } catch (e: any) {
       console.error("Application error:", e);
       Alert.alert("Error", e.message || "Failed to submit application.");
@@ -263,52 +265,78 @@ export default function Ayuda() {
                   <Text style={s.amountValue}>{selectedProgram.amount}</Text>
                 </View>
 
-                <Text style={s.formLabel}>Distribution Method</Text>
-                <View style={s.methodGrid}>
-                  <TouchableOpacity style={[s.methodCard, distributionMethod === "digital" && s.methodCardActive]} onPress={() => { setDistributionMethod("digital"); setFormErrors({}); }}>
-                    <CreditCard size={24} color={distributionMethod === "digital" ? "white" : colors.foreground} />
-                    <Text style={[s.methodTitle, distributionMethod === "digital" && s.textWhite]}>Digital</Text>
-                    <Text style={[s.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[s.methodCard, distributionMethod === "physical" && s.methodCardActive]} onPress={() => { setDistributionMethod("physical"); setFormErrors({}); }}>
-                    <MapPin size={24} color={distributionMethod === "physical" ? "white" : colors.foreground} />
-                    <Text style={[s.methodTitle, distributionMethod === "physical" && s.textWhite]}>Physical</Text>
-                    <Text style={[s.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {distributionMethod === "digital" ? (
+                {/* --- NEW VERIFICATION STEP --- */}
+                {!hasVerified ? (
                   <View style={s.listGap}>
-                    <Text style={s.formLabel}>Bank Details</Text>
-                    <View>
-                      <TextInput style={s.input} placeholder="Account Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.accountName} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountName: t }); setFormErrors({ ...formErrors, accountName: undefined }); }} />
-                      {formErrors.accountName && <Text style={s.errorText}>{formErrors.accountName}</Text>}
+                    <Text style={s.formLabel}>Verify Qualifications</Text>
+                    <View style={s.eligibilityBox}>
+                      <Text style={s.eligibilityLabel}>Eligibility Requirements:</Text>
+                      <Text style={s.eligibilityText}>{selectedProgram.eligibility}</Text>
                     </View>
-                    <View>
-                      <TextInput style={s.input} placeholder="Account Number" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={bankDetails.accountNumber} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountNumber: t }); setFormErrors({ ...formErrors, accountNumber: undefined }); }} />
-                      {formErrors.accountNumber && <Text style={s.errorText}>{formErrors.accountNumber}</Text>}
-                    </View>
-                    <View>
-                      <TextInput style={s.input} placeholder="Bank Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.bankName} onChangeText={(t) => { setBankDetails({ ...bankDetails, bankName: t }); setFormErrors({ ...formErrors, bankName: undefined }); }} />
-                      {formErrors.bankName && <Text style={s.errorText}>{formErrors.bankName}</Text>}
+                    <Text style={s.verificationPrompt}>
+                      By proceeding, you confirm that you meet all the eligibility requirements listed above.
+                    </Text>
+
+                    <View style={s.actionRow}>
+                      <TouchableOpacity style={[s.secondaryBtn, { flex: 1 }]} onPress={handleCancel}>
+                        <Text style={s.secondaryBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[s.primaryBtn, { flex: 1 }]} onPress={() => setHasVerified(true)}>
+                        <Text style={s.primaryBtnText}>I Confirm & Qualify</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 ) : (
-                  <View style={s.infoBox}>
-                    <Info size={18} color="#2563eb" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.infoBoxTitle}>Physical Distribution Schedule:</Text>
-                      <Text style={s.infoBoxText}>Check the program details for distribution dates. Please bring a valid ID when claiming at the Barangay Hall.</Text>
+                  /* --- EXISTING FORM STEP --- */
+                  <>
+                    <Text style={s.formLabel}>Distribution Method</Text>
+                    <View style={s.methodGrid}>
+                      <TouchableOpacity style={[s.methodCard, distributionMethod === "digital" && s.methodCardActive]} onPress={() => { setDistributionMethod("digital"); setFormErrors({}); }}>
+                        <CreditCard size={24} color={distributionMethod === "digital" ? "white" : colors.foreground} />
+                        <Text style={[s.methodTitle, distributionMethod === "digital" && s.textWhite]}>Digital</Text>
+                        <Text style={[s.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[s.methodCard, distributionMethod === "physical" && s.methodCardActive]} onPress={() => { setDistributionMethod("physical"); setFormErrors({}); }}>
+                        <MapPin size={24} color={distributionMethod === "physical" ? "white" : colors.foreground} />
+                        <Text style={[s.methodTitle, distributionMethod === "physical" && s.textWhite]}>Physical</Text>
+                        <Text style={[s.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                )}
 
-                <View style={s.actionRow}>
-                  <TouchableOpacity style={[s.secondaryBtn, { flex: 1 }]} onPress={handleCancel} disabled={isSubmitting}><Text style={s.secondaryBtnText}>Cancel</Text></TouchableOpacity>
-                  <TouchableOpacity style={[s.primaryBtn, { flex: 1, flexDirection: 'row', gap: 8 }]} onPress={handleApply} disabled={isSubmitting}>
-                    {isSubmitting ? <ActivityIndicator color="white" /> : <><CheckCircle size={18} color="white" /><Text style={s.primaryBtnText}>Submit</Text></>}
-                  </TouchableOpacity>
-                </View>
+                    {distributionMethod === "digital" ? (
+                      <View style={s.listGap}>
+                        <Text style={s.formLabel}>Bank Details</Text>
+                        <View>
+                          <TextInput style={s.input} placeholder="Account Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.accountName} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountName: t }); setFormErrors({ ...formErrors, accountName: undefined }); }} />
+                          {formErrors.accountName && <Text style={s.errorText}>{formErrors.accountName}</Text>}
+                        </View>
+                        <View>
+                          <TextInput style={s.input} placeholder="Account Number" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={bankDetails.accountNumber} onChangeText={(t) => { setBankDetails({ ...bankDetails, accountNumber: t }); setFormErrors({ ...formErrors, accountNumber: undefined }); }} />
+                          {formErrors.accountNumber && <Text style={s.errorText}>{formErrors.accountNumber}</Text>}
+                        </View>
+                        <View>
+                          <TextInput style={s.input} placeholder="Bank Name" placeholderTextColor={colors.mutedForeground} value={bankDetails.bankName} onChangeText={(t) => { setBankDetails({ ...bankDetails, bankName: t }); setFormErrors({ ...formErrors, bankName: undefined }); }} />
+                          {formErrors.bankName && <Text style={s.errorText}>{formErrors.bankName}</Text>}
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={s.infoBox}>
+                        <Info size={18} color="#2563eb" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.infoBoxTitle}>Physical Distribution Schedule:</Text>
+                          <Text style={s.infoBoxText}>Check the program details for distribution dates. Please bring a valid ID when claiming at the Barangay Hall.</Text>
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={s.actionRow}>
+                      <TouchableOpacity style={[s.secondaryBtn, { flex: 1 }]} onPress={handleCancel} disabled={isSubmitting}><Text style={s.secondaryBtnText}>Cancel</Text></TouchableOpacity>
+                      <TouchableOpacity style={[s.primaryBtn, { flex: 1, flexDirection: 'row', gap: 8 }]} onPress={handleApply} disabled={isSubmitting}>
+                        {isSubmitting ? <ActivityIndicator color="white" /> : <><CheckCircle size={18} color="white" /><Text style={s.primaryBtnText}>Submit</Text></>}
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
               </View>
             )}
           </>
@@ -369,4 +397,8 @@ const createStyles = (c: ThemeColors) => StyleSheet.create({
   badgeGreen: { backgroundColor: "#f0fdf4" }, badgeOrange: { backgroundColor: "#fff7ed" }, badgeGray: { backgroundColor: "#f3f4f6" },
   textGreen: { color: c.success }, textOrange: { color: c.warning }, textGray: { color: "#4b5563" }, textRed: { color: c.danger },
   textWhite: { color: "white" },
+  eligibilityBox: { backgroundColor: c.muted, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: c.border },
+  eligibilityLabel: { fontSize: 12, fontWeight: "700", color: c.foreground, marginBottom: 6 },
+  eligibilityText: { fontSize: 14, color: c.foreground, lineHeight: 22 },
+  verificationPrompt: { fontSize: 13, color: c.mutedForeground, textAlign: "center", fontStyle: "italic", marginVertical: 8 },
 });
