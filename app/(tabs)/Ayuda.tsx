@@ -165,7 +165,8 @@ export default function Ayuda() {
 
     } catch (e: any) {
       console.error("Application error:", e);
-      Alert.alert("Error", e.message || "Failed to submit application.");
+      // This will force the app to show the exact Supabase rejection reason
+      Alert.alert("Database Error", e.message || JSON.stringify(e));
     } finally {
       setIsSubmitting(false);
     }
