@@ -11,12 +11,13 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
@@ -34,6 +35,7 @@ export default function Ayuda() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasVerified, setHasVerified] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [formErrors, setFormErrors] = useState<{ accountName?: string; accountNumber?: string; bankName?: string }>({});
   const { colors } = useTheme();
@@ -53,6 +55,12 @@ export default function Ayuda() {
     await Promise.all([fetchPrograms(), fetchApplications()]);
     setIsLoading(false);
   };
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchPrograms(), fetchApplications()]);
+    setRefreshing(false);
+  }, []);
 
   const fetchPrograms = async () => {
     try {
@@ -188,7 +196,17 @@ export default function Ayuda() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={s.scrollContent}>
+      <ScrollView
+        contentContainerStyle={s.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]} // Uses your theme's primary color for the Android spinner
+            tintColor={colors.primary} // Uses your theme's primary color for the iOS spinner
+          />
+        }
+      >
         {isLoading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
         ) : (
@@ -218,7 +236,17 @@ export default function Ayuda() {
                           <View style={s.detailItem}><Info size={14} color={colors.mutedForeground} /><Text style={s.detailText}>{program.eligibility}</Text></View>
                         </View>
                         {program.status === "active" && (
-                          <TouchableOpacity style={s.primaryBtn} onPress={() => { setSelectedProgram(program); setView("apply"); }}>
+                          <TouchableOpacity style={s.primaryBtn} onPress={() => {
+                            setSelectedProgram(program);
+                            const dist = program.distribution?.toLowerCase() || "";
+                            // ADDED: "face" to catch "face-to-face" or "face to face"
+                            if (dist.includes("site") || dist.includes("physical") || dist.includes("barangay") || dist.includes("face")) {
+                              setDistributionMethod("physical");
+                            } else {
+                              setDistributionMethod("digital");
+                            }
+                            setView("apply");
+                          }}>
                             <Text style={s.primaryBtnText}>Apply Now</Text>
                           </TouchableOpacity>
                         )}
@@ -290,18 +318,36 @@ export default function Ayuda() {
                   /* --- EXISTING FORM STEP --- */
                   <>
                     <Text style={s.formLabel}>Distribution Method</Text>
-                    <View style={s.methodGrid}>
-                      <TouchableOpacity style={[s.methodCard, distributionMethod === "digital" && s.methodCardActive]} onPress={() => { setDistributionMethod("digital"); setFormErrors({}); }}>
-                        <CreditCard size={24} color={distributionMethod === "digital" ? "white" : colors.foreground} />
-                        <Text style={[s.methodTitle, distributionMethod === "digital" && s.textWhite]}>Digital</Text>
-                        <Text style={[s.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[s.methodCard, distributionMethod === "physical" && s.methodCardActive]} onPress={() => { setDistributionMethod("physical"); setFormErrors({}); }}>
-                        <MapPin size={24} color={distributionMethod === "physical" ? "white" : colors.foreground} />
-                        <Text style={[s.methodTitle, distributionMethod === "physical" && s.textWhite]}>Physical</Text>
-                        <Text style={[s.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
-                      </TouchableOpacity>
-                    </View>
+
+                    {(() => {
+                      const dist = selectedProgram.distribution?.toLowerCase() || "";
+                      // ADDED: "face" to catch "face-to-face"
+                      const isPhysical = dist.includes("site") || dist.includes("physical") || dist.includes("barangay") || dist.includes("face");
+                      const isOnline = dist.includes("online") || dist.includes("digital");
+                      const showBoth = isPhysical && isOnline; // Fallback if admin wrote both
+
+                      return (
+                        <View style={s.methodGrid}>
+                          {/* DIGITAL OPTION - Hides completely if isPhysical is true and isOnline is false */}
+                          {(isOnline || showBoth || (!isPhysical && !isOnline)) && (
+                            <TouchableOpacity style={[s.methodCard, distributionMethod === "digital" && s.methodCardActive]} onPress={() => { setDistributionMethod("digital"); setFormErrors({}); }}>
+                              <CreditCard size={24} color={distributionMethod === "digital" ? "white" : colors.foreground} />
+                              <Text style={[s.methodTitle, distributionMethod === "digital" && s.textWhite]}>Digital</Text>
+                              <Text style={[s.methodSub, distributionMethod === "digital" && { color: 'rgba(255,255,255,0.8)' }]}>Bank transfer</Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {/* PHYSICAL OPTION */}
+                          {(isPhysical || showBoth) && (
+                            <TouchableOpacity style={[s.methodCard, distributionMethod === "physical" && s.methodCardActive]} onPress={() => { setDistributionMethod("physical"); setFormErrors({}); }}>
+                              <MapPin size={24} color={distributionMethod === "physical" ? "white" : colors.foreground} />
+                              <Text style={[s.methodTitle, distributionMethod === "physical" && s.textWhite]}>Physical</Text>
+                              <Text style={[s.methodSub, distributionMethod === "physical" && { color: 'rgba(255,255,255,0.8)' }]}>Claim at barangay</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      );
+                    })()}
 
                     {distributionMethod === "digital" ? (
                       <View style={s.listGap}>
